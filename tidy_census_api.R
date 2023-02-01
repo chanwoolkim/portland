@@ -1,420 +1,281 @@
-# Set Access Key
+# Set access key
 accessKey <- "36d87abb2548485a59e01d3779c2ee90e05d96b5"
 
-# Set Dataset: Current American Community Survey (ACS) Dataset
+# Set dataset: current American Community Survey (ACS) dataset
 baseurl <- "https://api.census.gov/data/2021/acs/acs1/profile?get=NAME,"
 
-
-# Get the ACS Data for All Zip Codes in the United States
-if(!"acsByZip" %in% ls()){
-  acsByZip <- get_acs(
-    geography = "zcta",
-    variables=VariableMap$Variable,
-    key=accessKey,
-    output = "wide"
-  )
-  # save(acsByZip,file="ACSData.RData")
+# Function to evaluate variable
+evaluate_variable <- function(variable) {
+  return(cbind(variable=as.character(variable), 
+               variable_map_raw[[as.character(variable)]] %>% as.data.frame))
 }
 
-if(!"acsByTract" %in% ls()){
-  acsByTract <- get_acs(
-    geography = "tract",
-    variables=VariableMap$Variable,
-    key=accessKey,
-    output = "wide",
-    state="OR"
-  )
-  save(acsByZip, acsByTract,file="ACSData.RData")
-}
-
-#############################
-# if(!"acsByZip" %in% ls()){
-#  out <- tryCatch(
-#     {load("ACSData.RData")},
-#     error=function(e){
-#       message("Calling out to census API")
-#       message(e)
-#       acsByZip <- get_acs(
-#         geography = "zcta",
-#         variables=VariableMap$Variable,
-#         key=accessKey,
-#         output = "wide"
-#   )
-#   save(acsByZip,file="ACSData.RData")
-#     }
-#   )
-#  return(out)
-# }
-
-```
-
-```{r Load ACS}
-if(!"acsByZip" %in% ls() | !"acsByTract" %in% ls()){
-  load("ACSData.RData")
-}
-```
-
-```{r Function: Evaluate Variable}
-EvaluateVariable <- function(variable){
-  return(cbind(Variable=as.character(variable), 
-               variableMapRaw[[as.character(variable)]] %>% as.data.frame))
-}
-```
-
-```{r Function: Split Temp Column}
-SplitTempColumn <- function(string, index){
-  
+# Function to split temporary column
+split_temp_column <- function(string, index) {
   tryCatch(
     return(string[[index]]), error=function(e){"N/A"}
   )
-  
 }
-```
-
-```{r Retrieve Dataset Variable Legend}
-
-#Set Variable URL
-variableURL <- "https://api.census.gov/data/2021/acs/acs1/profile/variables.json"
-
-#Retrieve Variables & Build Data Frame
-variableMapRaw <- fromJSON(rawToChar(
-  GET(variableURL)[["content"]]))[["variables"]]
-VariableMapList <- lapply(names(variableMapRaw), EvaluateVariable)
-list_data <- Map(as.data.frame, VariableMapList)
-VariableMap <- rbindlist(list_data, fill=TRUE)
-VariableMap <- VariableMap %>% filter(str_detect(Variable, "DP"))
-VariableMap <- VariableMap %>% mutate(temp=strsplit(label, "!!"))
-
-#Set Variable Related Fields and Merge
-Type <- data.table(lapply(VariableMap$temp, SplitTempColumn, index=1))
-Category <- data.table(lapply(VariableMap$temp, SplitTempColumn, index=2))
-MetricGroup <- data.table(lapply(VariableMap$temp, SplitTempColumn, index=3))
-Metric <- data.table(lapply(VariableMap$temp, SplitTempColumn, index=4))
-SubMetric <- data.table(lapply(VariableMap$temp, SplitTempColumn, index=5))
-SubSubMetric <- data.table(lapply(VariableMap$temp, SplitTempColumn, index=6))
-SubMetric = data.table(SubMetric, SubSubMetric)
-names(SubMetric) <- c("Sub", "Sub2")
-SubMetric <- SubMetric %>% mutate(SubMetric=paste0(Sub, "::", Sub2)) %>% 
-  select(SubMetric)
-
-VariableMapTest <- cbind(VariableMap, Type=Type, Category=Category, 
-                         MetricGroup=MetricGroup, Metric=Metric)
-names(VariableMapTest)[12:15]<- c("Type", "Category", "MetricGroup", "Metric")
-
-VariableMapTest <- cbind(VariableMapTest, SubMetric=SubMetric)
-names(VariableMapTest)[16] <- "SubMetric"
 
 
-VariableMap <- VariableMapTest
+# Retrieve dataset variable legend ####
 
-VariableMapTest <- VariableMap %>% 
-  mutate(Metric=
+# Set variable url
+variable_url <- "https://api.census.gov/data/2021/acs/acs1/profile/variables.json"
+
+# Retrieve variables & build data frame
+variable_map_raw <- fromJSON(rawToChar(
+  GET(variable_url)[["content"]]))[["variables"]]
+variable_map_list <- lapply(names(variable_map_raw), evaluate_variable)
+list_data <- Map(as.data.frame, variable_map_list)
+variable_map <- rbindlist(list_data, fill=TRUE)
+variable_map <- variable_map %>% filter(str_detect(variable, "DP"))
+variable_map <- variable_map %>% mutate(temp=strsplit(label, "!!"))
+
+#Set variable Related Fields and Merge
+type <- data.table(lapply(variable_map$temp, split_temp_column, index=1))
+category <- data.table(lapply(variable_map$temp, split_temp_column, index=2))
+metric_group <- data.table(lapply(variable_map$temp, split_temp_column, index=3))
+metric <- data.table(lapply(variable_map$temp, split_temp_column, index=4))
+submetric <- data.table(lapply(variable_map$temp, split_temp_column, index=5))
+subsubmetric <- data.table(lapply(variable_map$temp, split_temp_column, index=6))
+submetric = data.table(submetric, subsubmetric)
+names(submetric) <- c("sub", "sub2")
+submetric <- submetric %>%
+  mutate(submetric=paste0(sub, "::", sub2)) %>% 
+  select(submetric)
+
+variable_map_test <- cbind(variable_map, type=type, category=category, 
+                           metric_group=metric_group, metric=metric)
+names(variable_map_test)[12:15]<- c("type", "category", "metric_group", "metric")
+
+variable_map_test <- cbind(variable_map_test, submetric=submetric)
+names(variable_map_test)[16] <- "submetric"
+
+variable_map <- variable_map_test
+
+variable_map_test <- variable_map %>% 
+  mutate(metric=
            case_when(
-             SubMetric=="N/A::N/A" ~ paste0(Metric),
-             TRUE ~ paste0(Metric,"::",SubMetric)
+             submetric=="N/A::N/A" ~ paste0(metric),
+             TRUE ~ paste0(metric, "::", submetric)
            ))
 
-VariableMapTest <- VariableMapTest %>% select(-SubMetric)
+variable_map_test <- variable_map_test %>% select(-submetric)
+variable_map <- variable_map_test
 
-VariableMap <- VariableMapTest
+save(variable_map, file=paste0(working_data_dir, "/acs_variables.RData"))
 
-save(VariableMap, file="acsVariables.RData")
 
-```
-
-```{r Create Dataset for Portland Tracts}
-if(!"acsByZip" %in% ls() | !"acsByTract" %in% ls()){
-  load("ACSData.RData")
-}
-
-tracts <- unique(GeoCodedAddressInfo$census_tract)
-
-PortlandACS_t <- acsByTract %>% 
-  filter(substr(GEOID,6,12) %in% tracts) %>% 
-  pivot_longer(
-    cols = starts_with("DP"),
-    names_to = "Variable"
-  ) %>% 
-  filter(substr(Variable,5,6)!="PR") %>% 
-  mutate(Group=substr(Variable,1,9),
-         Stat=substring(Variable, first=10)) %>% 
-  filter(Stat!="PM")  %>% 
-  pivot_wider(names_from = Stat, values_from = value) %>% 
-  mutate_all(~replace(., is.na(.), 0)) %>% 
-  group_by(GEOID, Group) %>% 
-  summarise(Estimate=max(E),
-            PercentEstimate=max(PE),
-            MoE=max(M)
-            
-  ) %>% 
-  mutate(lookup=paste0(Group,"E")) %>% 
-  left_join(VariableMap %>% 
-              filter(Type=="Estimate") %>% 
-              select(Variable, Category, MetricGroup, Metric),
-            by=c("lookup" = "Variable")) %>% select(-lookup)
-
-```
-
-```{r Portland Tract Demographics}
-DemographicStats <- c("DP02_0001","DP02_0016","DP03_0009", "DP03_0072", "DP03_0074",
-                      "DP03_0063","DP03_0065","DP03_0065","DP03_0069",
-                      "DP03_0071","DP03_0073", "DP03_0119")
-
-PortlandDemographics_t <- PortlandACS_t %>% 
-  filter(Group %in% DemographicStats) 
-
-metriclookup <- data.table(
-  Group=c("DP02_0001","DP02_0016","DP03_0009","DP03_0063","DP03_0065",
-          "DP03_0069","DP03_0071","DP03_0072","DP03_0073","DP03_0074",
-          "DP03_0119"),
-  MetricName=c("Total_HH","Avg_HH_Size","Avg_Unemployment","Avg_HH_Income",
-               "Avg_HH_Earnings","Avg_HH_Retirement","Avg_HH_SSI",
-               "Cash_Assist_Percent","Avg_HH_Cash_Assist","FoodStamp_Percent",
-               "Avg_HH_Poverty")
+# Get the ACS Data ####
+acs_zip <- get_acs(
+  geography="zcta",
+  variables=variable_map$variable,
+  key=accessKey,
+  output="wide"
 )
+save(acs_zip, file=paste0(working_data_dir, "/acs_zip.RData"))
 
-PortlandDemographics_t <- PortlandDemographics_t %>% 
-  select(-c(Category, MetricGroup, Metric))
+acs_tract <- get_acs(
+  geography="tract",
+  variables=variable_map$variable,
+  key=accessKey,
+  output="wide",
+  state="OR"
+)
+save(acs_tract, file=paste0(working_data_dir, "/acs_tract.RData"))
+save(acs_zip, acs_tract, file=paste0(working_data_dir, "/acs_data.RData"))
 
-PortlandDemographics_t <- PortlandDemographics_t %>% left_join(metriclookup)
 
-PortlandDemographics_t <- PortlandDemographics_t %>% 
-  select(GEOID,Group, MetricName, Estimate, PercentEstimate)
+# Portland statistics by tract ####
+tracts <- unique(geocode_address_info$census_tract)
 
-PortlandDemographics_t <- PortlandDemographics_t %>% 
-  group_by(GEOID, Group, MetricName, Estimate, PercentEstimate) %>% 
+portland_acs_tract <- acs_tract %>% 
+  filter(substr(GEOID, 6, 12) %in% tracts) %>% 
+  pivot_longer(cols=starts_with("DP"),
+               names_to="variable") %>% 
+  filter(substr(variable, 5, 6)!="PR") %>% 
+  mutate(group=substr(variable, 1, 9),
+         stat=substring(variable, first=10)) %>% 
+  filter(stat!="PM")  %>% 
+  pivot_wider(names_from=stat, values_from=value) %>% 
+  mutate_all(~replace(., is.na(.), 0)) %>% 
+  group_by(GEOID, group) %>% 
+  summarise(estimate=max(E),
+            percent_estimate=max(PE),
+            moe=max(M)) %>% 
+  ungroup() %>%
+  mutate(lookup=paste0(group, "E")) %>% 
+  left_join(variable_map %>% 
+              filter(type=="Estimate") %>% 
+              select(variable, category, metric_group, metric),
+            by=c("lookup"="variable")) %>%
+  select(-lookup)
+
+# Portland tract demographics
+demographic_stats <- c("DP02_0001", "DP02_0016", "DP03_0009",
+                       "DP03_0063", "DP03_0065", "DP03_0069", "DP03_0071",
+                       "DP03_0072", "DP03_0073", "DP03_0074",
+                       "DP03_0119",
+                       "DP05_0071", "DP05_0078")
+
+portland_demographics_tract <- portland_acs_tract %>% 
+  filter(group %in% demographic_stats)
+
+metric_lookup <- data.table(
+  group=c("DP02_0001", "DP02_0016", "DP03_0009",
+          "DP03_0063", "DP03_0065", "DP03_0069", "DP03_0071",
+          "DP03_0072", "DP03_0073", "DP03_0074",
+          "DP03_0119",
+          "DP05_0071", "DP05_0078"),
+  metric_name=c("total_hh", "hh_size", "unemployment",
+                "hh_income", "hh_earnings", "hh_retirement", "hh_ssi",
+                "cash_assistance", "hh_cash_assistance", "food_stamp",
+                "hh_poverty",
+                "hispanic", "black"))
+
+portland_demographics_tract <- portland_demographics_tract %>% 
+  select(-c(category, metric_group, metric))
+
+portland_demographics_tract <- portland_demographics_tract %>%
+  left_join(metric_lookup)
+
+portland_demographics_tract <- portland_demographics_tract %>% 
+  select(GEOID, group, metric_name, estimate, percent_estimate)
+
+portland_demographics_tract <- portland_demographics_tract %>% 
+  group_by(GEOID, group, metric_name, estimate, percent_estimate) %>% 
   mutate(value=case_when(
-    PercentEstimate > 0 ~ PercentEstimate,
-    TRUE ~ Estimate
-  ))
+    percent_estimate > 0 ~ percent_estimate,
+    TRUE ~ estimate
+  )) %>%
+  ungroup()
 
-PortlandDemographicsWide_t <- PortlandDemographics_t %>% 
-  pivot_wider(id_cols = c("GEOID"),
-              names_from = MetricName,
-              values_from = value)
+portland_demographics_tract_wide <- portland_demographics_tract %>% 
+  pivot_wider(id_cols=c("GEOID"),
+              names_from=metric_name,
+              values_from=value)
 
-PortlandDemographicsWide_t <- PortlandDemographicsWide_t %>% 
-  mutate(tract=substr(GEOID,6,12))
+portland_demographics_tract_wide <- portland_demographics_tract_wide %>% 
+  mutate(tract=substr(GEOID, 6, 12))
 
-PortlandDemographicsWide_t <- PortlandDemographicsWide_t %>% 
+portland_demographics_tract_wide <- portland_demographics_tract_wide %>% 
   group_by(tract) %>% 
-  summarise(
-    Total_HH=sum(Total_HH),
-    Avg_HH_Size=mean(Avg_HH_Size),
-    Avg_Unemployment=mean(Avg_Unemployment),   
-    Avg_HH_Income=mean(Avg_HH_Income),
-    Avg_HH_Earnings=mean(Avg_HH_Earnings),
-    Avg_HH_Retirement=mean(Avg_HH_Retirement),
-    Avg_HH_SSI=mean(Avg_HH_SSI),
-    Cash_Assist_Percent=sum(Cash_Assist_Percent),
-    Avg_HH_Cash_Assist=mean(Avg_HH_Cash_Assist),
-    FoodStamp_Percent=sum(FoodStamp_Percent),
-    Avg_HH_Poverty=mean(Avg_HH_Poverty)
-  )
+  summarise(total_hh=sum(total_hh),
+            hh_size=mean(hh_size),
+            unemployment=mean(unemployment),   
+            hh_income=mean(hh_income),
+            hh_earnings=mean(hh_earnings),
+            hh_retirement=mean(hh_retirement),
+            hh_ssi=mean(hh_ssi),
+            cash_assistance=sum(cash_assistance),
+            hh_cash_assistance=mean(hh_cash_assistance),
+            food_stamp=sum(food_stamp),
+            hh_poverty=mean(hh_poverty),
+            hispanic=mean(hispanic),
+            black=mean(black)) %>%
+  ungroup()
 
-save(PortlandDemographicsWide_t, file="PortlandDemographics.RData")
+# Add in life expectancy info
+life_expectancy <- read.csv(paste0(working_data_dir, "/US_A.CSV"),
+                            header=TRUE) %>%
+  select(tract_id=Tract.ID, life_expectancy=e.0.) %>%
+  filter(grepl("^41", tract_id)) %>%
+  mutate(tract_id=as.character(substr(tract_id, 6, 12)))
 
-```
+census_tract_change <- read.table(file=paste0(working_data_dir,
+                                              "/tab20_tract20_tract10_st41.txt"),
+                                  sep="|", quote="", comment.char="",
+                                  fill=TRUE, header=TRUE) %>%
+  mutate(GEOID_10=substr(GEOID_TRACT_10, 6, 12),
+         GEOID_20=substr(GEOID_TRACT_20, 6, 12)) %>%
+  select(GEOID_10, GEOID_20)
 
-###############################################################################
+life_expectancy_tract <- left_join(life_expectancy,
+                                   census_tract_change,
+                                   by=c("tract_id"="GEOID_10")) %>%
+  select(tract=GEOID_20, life_expectancy) %>%
+  unique()
+
+portland_demographics_tract_wide <-
+  left_join(portland_demographics_tract_wide,
+            life_expectancy_tract,
+            by="tract")
+
+save(portland_demographics_tract_wide,
+     file=paste0(working_data_dir, "/portland_demographics_tract.RData"))
 
 
-##############################DRAFT#########################################
-```{r Create Dataset for Portland Zip Codes}
-PortlandACS <- acsByZip %>% 
-  filter(GEOID %in% WaterBillData$ZipShort) %>% 
-  pivot_longer(
-    cols = starts_with("DP"),
-    names_to = "Variable"
-  ) %>% 
-  filter(substr(Variable,5,6)!="PR") %>% 
-  mutate(Group=substr(Variable,1,9),
-         Stat=substring(Variable, first=10)) %>% 
-  filter(Stat!="PM")  %>% 
-  pivot_wider(names_from = Stat, values_from = value) %>% 
+# Portland statistics by ZIP code ####
+zips <- unique(substr(geocode_address_info$POSTAL_CODE, 1, 5))
+zips <- zips[grep("^97", zips)]
+
+portland_acs_zip <- acs_zip %>% 
+  filter(GEOID %in% zips) %>% 
+  pivot_longer(cols=starts_with("DP"),
+               names_to="variable") %>% 
+  filter(substr(variable, 5, 6)!="PR") %>% 
+  mutate(group=substr(variable, 1, 9),
+         stat=substring(variable, first=10)) %>% 
+  filter(stat!="PM")  %>% 
+  pivot_wider(names_from=stat, values_from=value) %>% 
   mutate_all(~replace(., is.na(.), 0)) %>% 
-  group_by(GEOID, Group) %>% 
-  summarise(Estimate=max(E),
-            PercentEstimate=max(PE),
-            MoE=max(M)
-            
-  ) %>% 
-  mutate(lookup=paste0(Group,"E")) %>% 
-  left_join(VariableMap %>% 
-              filter(Type=="Estimate") %>% 
-              select(Variable, Category, MetricGroup, Metric),
-            by=c("lookup" = "Variable")) %>% select(-lookup)
+  group_by(GEOID, group) %>% 
+  summarise(estimate=max(E),
+            percent_estimate=max(PE),
+            moe=max(M)) %>% 
+  ungroup() %>%
+  mutate(lookup=paste0(group, "E")) %>% 
+  left_join(variable_map %>% 
+              filter(type=="Estimate") %>% 
+              select(variable, category, metric_group, metric),
+            by=c("lookup"="variable")) %>%
+  select(-lookup)
 
-```
+portland_demographics_zip <- portland_acs_zip %>% 
+  filter(group %in% demographic_stats)
 
-```{r Portland Zip Demographics}
-DemographicStats <- c("DP02_0001","DP02_0016","DP03_0009", "DP03_0072", "DP03_0074",
-                      "DP03_0063","DP03_0065","DP03_0065","DP03_0069",
-                      "DP03_0071","DP03_0073", "DP03_0119")
+portland_demographics_zip <- portland_demographics_zip %>% 
+  select(-c(category, metric_group, metric))
 
-PortlandDemographics <- PortlandACS %>% 
-  filter(Group %in% DemographicStats) 
+portland_demographics_zip <- portland_demographics_zip %>%
+  left_join(metric_lookup)
 
-metriclookup <- data.table(
-  Group=c("DP02_0001","DP02_0016","DP03_0009","DP03_0063","DP03_0065",
-          "DP03_0069","DP03_0071","DP03_0072","DP03_0073","DP03_0074",
-          "DP03_0119"),
-  MetricName=c("Total_HH","Avg_HH_Size","Avg_Unemployment","Avg_HH_Income",
-               "Avg_HH_Earnings","Avg_HH_Retirement","Avg_HH_SSI",
-               "Cash_Assist_Percent","Avg_HH_Cash_Assist","FoodStamp_Percent",
-               "Avg_HH_Poverty")
-)
+portland_demographics_zip <- portland_demographics_zip %>% 
+  select(GEOID, group, metric_name, estimate, percent_estimate)
 
-PortlandDemographics <- PortlandDemographics %>% 
-  select(-c(Category, MetricGroup, Metric))
-
-PortlandDemographics <- PortlandDemographics %>% left_join(metriclookup)
-
-PortlandDemographics <- PortlandDemographics %>% 
-  select(GEOID,Group, MetricName, Estimate, PercentEstimate)
-
-PortlandDemographics <- PortlandDemographics %>% 
-  group_by(GEOID, Group, MetricName, Estimate, PercentEstimate) %>% 
+portland_demographics_zip <- portland_demographics_zip %>% 
+  group_by(GEOID, group, metric_name, estimate, percent_estimate) %>% 
   mutate(value=case_when(
-    PercentEstimate > 0 ~ PercentEstimate,
-    TRUE ~ Estimate
-  ))
+    percent_estimate > 0 ~ percent_estimate,
+    TRUE ~ estimate
+  )) %>%
+  ungroup()
 
-PortlandDemographicsWide <- PortlandDemographics %>% 
-  pivot_wider(id_cols = c("GEOID"),
-              names_from = MetricName,
-              values_from = value)
+portland_demographics_zip_wide <- portland_demographics_zip %>% 
+  pivot_wider(id_cols=c("GEOID"),
+              names_from=metric_name,
+              values_from=value)
 
-```
+portland_demographics_zip_wide <- portland_demographics_zip_wide %>% 
+  mutate(zip=GEOID)
 
-```{r DRAFT...Create Portland Summaries}
+portland_demographics_zip_wide <- portland_demographics_zip_wide %>% 
+  group_by(zip) %>% 
+  summarise(total_hh=sum(total_hh),
+            hh_size=mean(hh_size),
+            unemployment=mean(unemployment),   
+            hh_income=mean(hh_income),
+            hh_earnings=mean(hh_earnings),
+            hh_retirement=mean(hh_retirement),
+            hh_ssi=mean(hh_ssi),
+            cash_assistance=sum(cash_assistance),
+            hh_cash_assistance=mean(hh_cash_assistance),
+            food_stamp=sum(food_stamp),
+            hh_poverty=mean(hh_poverty),
+            hispanic=mean(hispanic),
+            black=mean(black)) %>%
+  ungroup()
 
-relevantCategories <- c("EMPLOYMENT STATUS", "OCCUPATION", "CLASS OF WORKER", 
-                        "INCOME AND BENEFITS (IN 2021 INFLATION-ADJUSTED DOLLARS)",
-                        "PERCENTAGE OF FAMILIES AND PEOPLE WHOSE INCOME IN THE PAST 12 MONTHS IS BELOW THE POVERTY LEVEL")
-
-AvgMetrics <- c("DP03_0063","DP03_0065","DP03_0067","DP03_0069","DP03_0071",
-                "DP03_0073","DP03_0087", "DP03_0119")
-
-PortlandACSSummaries <- PortlandACS %>% 
-  group_by(Group, Category, MetricGroup, Metric) %>% 
-  summarise(Estimate=
-              case_when(
-                Group %in% AvgMetrics ~ mean(Estimate),
-                TRUE ~ sum(Estimate)
-              ),
-            PercentEstimate=
-              case_when(
-                Group %in% AvgMetrics ~ mean(PercentEstimate),
-                TRUE ~sum(PercentEstimate)
-              )
-  ) %>%
-  filter(Category %in% relevantCategories | MetricGroup=="Total households")
-
-topVariables <- c("DP02_0001","DP02_0153","DP03_0052","DP03_0053","DP03_0054",
-                  "DP03_0055","DP03_0056","DP03_0057","DP03_0058","DP03_0059","DP03_0060",
-                  "DP03_0061","DP03_0062","DP03_0063","DP03_0064","DP03_0065","DP03_0066",
-                  "DP03_0067","DP03_0068","DP03_0069","DP03_0070","DP03_0071","DP03_0072",
-                  "DP03_0073","DP03_0074","DP03_0075","DP03_0076","DP03_0077","DP03_0078",
-                  "DP03_0079","DP03_0080","DP03_0081","DP03_0082","DP03_0083","DP03_0084",
-                  "DP03_0085","DP03_0086","DP03_0087", "DP03_0119")
-
-PortlandACSSummaries <- PortlandACSSummaries %>% filter(Group %in% topVariables)
-names(PortlandACSSummaries)[5:6] <- c("PortlandEstimate", "PortlandPercentEstimate")
-
-PortlandAnalysis <- inner_join(PortlandACS, PortlandACSSummaries %>% 
-                                 select(Group, PortlandEstimate, PortlandPercentEstimate))
-
-
-```
-
-```{r DRAFT...Analyze Data}
-PortlandAnalysis <- PortlandACS %>% filter(Group %in% topVariables)
-
-IncomeStats <- c("DP03_0052","DP03_0053","DP03_0054","DP03_0055","DP03_0056",
-                 "DP03_0057","DP03_0058","DP03_0059","DP03_0060","DP03_0061", "DP03_0119")
-
-IncomeStats2 <- c("DP03_0063","DP03_0065","DP03_0065","DP03_0069",
-                  "DP03_0071","DP03_0073")
-
-
-IncomeAnalysis <- PortlandAnalysis %>% 
-  filter(Group %in% IncomeStats) %>% 
-  mutate(lowincome=case_when(
-    Metric=="$100,000 to $149,999" ~ FALSE,
-    Metric=="$150,000 to $199,999" ~ FALSE,
-    Metric=="$200,000 or more" ~ FALSE,
-    TRUE ~ TRUE
-  )) %>% group_by(GEOID, lowincome) %>% 
-  summarise(PercentEstimate=sum(PercentEstimate)) 
-
-
-LowIncomeAnalysis <- IncomeAnalysis %>% 
-  pivot_wider(names_from=lowincome, values_from=PercentEstimate) 
-
-names(LowIncomeAnalysis) <- c("GEOID","highincome", "lowincome")
-
-LowIncomeAnalysis <- LowIncomeAnalysis %>% arrange(desc(lowincome))
-
-LowIncomeZips <- LowIncomeAnalysis[1:10,"GEOID"]
-
-PovertyAnalysis <- PortlandAnalysis %>% 
-  filter(Group=="DP03_0119") %>% 
-  select(GEOID, PercentEstimate) %>% 
-  mutate(AboveAvg=PercentEstimate>5.95641)
-
-IncomeAndPoverty <- left_join(LowIncomeAnalysis, PovertyAnalysis)
-names(IncomeAndPoverty)[4:5] <- c("PovertyPercentEstimate", "PovertyAboveAverage") 
-
-save(PortlandACS, LowIncomeAnalysis, PovertyAnalysis, IncomeAndPoverty,
-     file="LoadPortlandACSStats.RData")
-
-```
-
-
-
-
-
-
-
-```{r DELETE}
-
-
-stateVariables <- seattleACS %>% filter(Category %in% relevantCategories) 
-stateVariables <- unique(stateVariables$Group)
-
-getWAacs <- get_acs(geography = "county",
-                    variables = stateVariables,
-                    state="WA",
-                    key="36d87abb2548485a59e01d3779c2ee90e05d96b5",
-                    output="wide")
-
-seattlStats <- getWAacs %>% pivot_longer(
-  cols = starts_with("DP"),
-  names_to = "Variable") %>% 
-  mutate(Group=substr(Variable,1,9),
-         Stat=substring(Variable, first=10)) %>% 
-  pivot_wider(names_from = Stat, values_from = value) %>% 
-  mutate_all(~replace(., is.na(.), 0)) %>% 
-  group_by(GEOID, Group) %>% 
-  summarise(StateEstimate=max(E),
-            MoE=max(M)) %>% 
-  select(Group,StateEstimate)
-
-
-seattleTest <- inner_join(seattleACS, seattlStats,
-                          by=c("Group"="Group"))
-
-
-seattleACS <-  seattleACS %>% 
-  mutate(Metric = case_when(
-    is.na(SubMetric) ~ Metric,
-    TRUE ~ paste0(Metric,"::",SubMetric)
-  )
-  ) %>% select(-SubMetric) %>% View()
-```
-
-
-
-
-
+save(portland_demographics_zip_wide,
+     file=paste0(working_data_dir, "/portland_demographics_zip.RData"))
