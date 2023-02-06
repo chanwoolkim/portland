@@ -81,17 +81,28 @@ acs_tract <- get_acs(
   variables=variable_map$variable,
   key=accessKey,
   output="wide",
-  state="OR"
+  state="OR",
 )
-save(acs_tract, file=paste0(working_data_dir, "/acs_tract.RData"))
-save(acs_zip, acs_tract, file=paste0(working_data_dir, "/acs_data.RData"))
+acs_tract_geometry <- get_acs(
+  geography="tract",
+  variables=variable_map$variable,
+  key=accessKey,
+  output="wide",
+  state="OR",
+  geometry=TRUE,
+)
+save(acs_tract, acs_tract_geometry,
+     file=paste0(working_data_dir, "/acs_tract.RData"))
+save(acs_zip, acs_tract, acs_tract_geometry,
+     file=paste0(working_data_dir, "/acs_data.RData"))
 
 
 # Portland statistics by tract ####
-tracts <- unique(geocode_address_info$census_tract)
+tracts <- read.csv(file=paste0(working_data_dir, "/portland_geoid.csv"),
+                   header=TRUE)$GEOID
 
 portland_acs_tract <- acs_tract %>% 
-  filter(substr(GEOID, 6, 12) %in% tracts) %>% 
+  filter(GEOID %in% tracts) %>%
   pivot_longer(cols=starts_with("DP"),
                names_to="variable") %>% 
   filter(substr(variable, 5, 6)!="PR") %>% 
@@ -195,12 +206,15 @@ life_expectancy_tract <- left_join(life_expectancy,
                                    census_tract_change,
                                    by=c("tract_id"="GEOID_10")) %>%
   select(tract=GEOID_20, life_expectancy) %>%
+  group_by(tract) %>%
+  summarise(life_expectancy=mean(life_expectancy, na.rm=TRUE)) %>%
   unique()
 
 portland_demographics_tract_wide <-
   left_join(portland_demographics_tract_wide,
             life_expectancy_tract,
-            by="tract")
+            by="tract") %>%
+  unique()
 
 save(portland_demographics_tract_wide,
      file=paste0(working_data_dir, "/portland_demographics_tract.RData"))

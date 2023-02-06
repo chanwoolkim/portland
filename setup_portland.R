@@ -47,7 +47,7 @@ payment_arrangement_info <- read.table(file=paste0(data_dir, "/CO00210T_FINAL.tx
                                   fill=TRUE, header=TRUE)
 
 save(account_info, address_info, geocode_address_info_subset, bill_info, 
-     location_relation, shutoff_info, financial_assist,
+     location_relation, financial_assist,
      cutoff_info, reconnect_info,
      payment_arrangement, payment_arrangement_info,
      file=paste0(working_data_dir, "/analysis_info.RData"))

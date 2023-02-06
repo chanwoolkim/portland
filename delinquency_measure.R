@@ -1,98 +1,179 @@
-# Measure Delinquency
+# Meausres of Delinquency/Cutoff
 
 load(file=paste0(working_data_dir, "/analysis_info.RData"))
 
-bill_info <- bill_info %>% 
-  #filter(BILL_RUN_DT!="") %>%
-  #select(-BILL_RUN_TM) %>%
-  arrange(ACCOUNT_NO, BILL_RUN_DT)
+bill_info <- bill_info %>%
+  mutate(PERIOD_FROM_DT=mdy(PERIOD_FROM_DT),
+         PERIOD_TO_DT=mdy(PERIOD_TO_DT),
+         DUE_DT=mdy(DUE_DT))
 
 bill_info_filtered <- bill_info %>% 
   filter(CANCELED_BILL_YN!="Y",
-         PERIOD_FROM_DT!="", 
-         PERIOD_TO_DT!="",
-         #PREV_BILL_AMT!=0,
+         !is.na(PERIOD_FROM_DT), 
+         !is.na(PERIOD_TO_DT),
+         !is.na(DUE_DT),
          ERROR_YN==FALSE,
          AUDIT_OR_LIVE=="L",
-         BILL_TP!="REVRS",
+         BILL_TP %in% c("REGLR", "MSTMT"),
+         SOURCE_CD %in% c("", "QB1", "QB2", "QB3"),
          CORRECTED_BILL_YN==FALSE)
 
-debt_accumulation_bills <- bill_info_filtered %>%
-  #Identify the correct criteria to consider it a "Non Paid" bill
-  filter(PREV_BILL_AMT+TOTAL_PAYMENTS>0) %>% 
-  select(
-    ACCOUNT_NO, BILL_RUN_DT, BILL_DT, BILL_TP, PERSON_NO, PERIOD_FROM_DT, PERIOD_TO_DT, 
-    BILLING_DAYS, PREV_BILL_AMT, DUE_DT, DISCOUNT_AMT_DUE, DISCOUNT_DUE_DT, 
-    DISCOUNT_PCT, TOTAL_PAYMENTS, BILL_GENERATED_CHGS, AR_NET_AFTER_BILL) %>% 
-  arrange(ACCOUNT_NO)
+# Those who are not on a payment plan
+no_plan_bill <- bill_info_filtered %>%
+  filter(SOURCE_CD=="") %>%
+  mutate(delinquent=PREV_BILL_AMT+TOTAL_PAYMENTS>0,
+         delinquent_amount=ifelse(PREV_BILL_AMT+TOTAL_PAYMENTS>0,
+                                  PREV_BILL_AMT+TOTAL_PAYMENTS,
+                                  0),
+         due_year=year(DUE_DT)) %>%
+  group_by(ACCOUNT_NO, due_year) %>%
+  summarise(n_bill=n(),
+            delinquent=sum(delinquent, na.rm=TRUE),
+            delinquent_amount=sum(delinquent_amount, na.rm=TRUE)) %>%
+  ungroup() %>%
+  select(ACCOUNT_NO, due_year, n_bill, delinquent, delinquent_amount)
 
-debt_accumulation_accounts <- bill_info_filtered %>%
-  filter(ACCOUNT_NO %in% debt_accumulation_bills$ACCOUNT_NO) %>% 
-  group_by(ACCOUNT_NO) %>% 
-  summarise(bills_accumulated=n(),
-            accumulated_debt=sum(PREV_BILL_AMT)+sum(TOTAL_PAYMENTS),
-            AR_NET_AFTER_BILL=max(AR_NET_AFTER_BILL),
-            check=max(PREV_BILL_AMT)+max(BILL_GENERATED_CHGS),
-            date_check=max(PERIOD_TO_DT)) 
+# Those on a payment plan
+plan_bill <- bill_info_filtered %>%
+  filter(SOURCE_CD!="") %>%
+  mutate(delinquent=AR_DUE_BEFORE_BILL>0,
+         delinquent_amount=ifelse(AR_DUE_BEFORE_BILL>0,
+                                  AR_DUE_BEFORE_BILL,
+                                  0),
+         due_year=year(DUE_DT)) %>%
+  group_by(ACCOUNT_NO, due_year) %>%
+  summarise(n_bill=n(),
+            delinquent=sum(delinquent, na.rm=TRUE),
+            delinquent_amount=sum(delinquent_amount, na.rm=TRUE)) %>%
+  ungroup() %>%
+  select(ACCOUNT_NO, due_year, n_bill, delinquent, delinquent_amount)
 
-date_check <- data.table(dc=unique(debt_accumulation_accounts$date_check)) %>% 
-  mutate(dcf=mdy(dc))
+delinquency_status <- rbind(no_plan_bill, plan_bill) %>%
+  group_by(ACCOUNT_NO, due_year) %>%
+  summarise(n_bill=sum(n_bill, na.rm=TRUE),
+            delinquent=sum(delinquent, na.rm=TRUE),
+            delinquent_amount=sum(delinquent_amount, na.rm=TRUE)) %>%
+  ungroup() %>%
+  mutate(delinquency_rate=delinquent/n_bill) %>%
+  pivot_wider(id_cols=ACCOUNT_NO, 
+              names_from=due_year, 
+              values_from=c("n_bill",
+                            "delinquent",
+                            "delinquency_rate",
+                            "delinquent_amount"),
+              values_fill=0)
 
-debt_accumulation_accounts <- debt_accumulation_accounts %>% 
-  left_join(date_check, by=c("date_check"="dc"))
 
-location_relation$ACCT_TO_FRC_CONNECT <- as.double(location_relation$ACCT_TO_FRC_CONNECT)
+# Payment arrangement by year ####
+payment_arrange_by_year <- payment_arrangement %>%
+  filter(grepl("/", START_DT),
+         grepl("/", END_DT)) %>%
+  mutate(ACCOUNT_NO=as.character(SS_ACCOUNT_NO),
+         payment_arrange_start=mdy(START_DT),
+         payment_arrange_end=mdy(END_DT)) %>%
+  rowwise() %>%
+  mutate(payment_arrange_2019=
+           between(2019,
+                   year(payment_arrange_start),
+                   year(payment_arrange_end)),
+         payment_arrange_2020=
+           between(2020,
+                   year(payment_arrange_start),
+                   year(payment_arrange_end)),
+         payment_arrange_2021=
+           between(2021,
+                   year(payment_arrange_start),
+                   year(payment_arrange_end)),
+         payment_arrange_2022=
+           between(2022,
+                   year(payment_arrange_start),
+                   year(payment_arrange_end))) %>%
+  group_by(ACCOUNT_NO) %>%
+  summarise(payment_arrange_2019=sum(payment_arrange_2019),
+            payment_arrange_2020=sum(payment_arrange_2020),
+            payment_arrange_2021=sum(payment_arrange_2021),
+            payment_arrange_2022=sum(payment_arrange_2022)) %>%
+  ungroup() %>%
+  mutate(payment_arrange_2019=payment_arrange_2019>0,
+         payment_arrange_2020=payment_arrange_2020>0,
+         payment_arrange_2021=payment_arrange_2021>0,
+         payment_arrange_2022=payment_arrange_2022>0)
 
-debt_accumulation_accounts <- debt_accumulation_accounts %>% 
-  left_join(location_relation %>%
-              select(ACCT_TO_FRC_CONNECT, LOCATION_NO),
-            by=c("ACCOUNT_NO"="ACCT_TO_FRC_CONNECT"))
 
-debt_accumulation_accounts <- debt_accumulation_accounts %>% 
-  left_join(unique(geocode_address_info_subset))
+# Financial assistance by year ####
+financial_assist_by_year <- financial_assist %>%
+  mutate(ACCOUNT_NO=as.character(ACCOUNT_NO),
+         financial_assist_start=mdy(EFFECTIVE_DT),
+         financial_assist_end=mdy(EXPIRY_DT)) %>%
+  rowwise() %>%
+  mutate(financial_assist_2019=
+           between(2019,
+                   year(financial_assist_start),
+                   year(financial_assist_end)),
+         financial_assist_2020=
+           between(2020,
+                   year(financial_assist_start),
+                   year(financial_assist_end)),
+         financial_assist_2021=
+           between(2021,
+                   year(financial_assist_start),
+                   year(financial_assist_end)),
+         financial_assist_2022=
+           between(2022,
+                   year(financial_assist_start),
+                   year(financial_assist_end))) %>%
+  group_by(ACCOUNT_NO) %>%
+  summarise(financial_assist_2019=sum(financial_assist_2019),
+            financial_assist_2020=sum(financial_assist_2020),
+            financial_assist_2021=sum(financial_assist_2021),
+            financial_assist_2022=sum(financial_assist_2022)) %>%
+  ungroup() %>%
+  mutate(financial_assist_2019=financial_assist_2019>0,
+         financial_assist_2020=financial_assist_2020>0,
+         financial_assist_2021=financial_assist_2021>0,
+         financial_assist_2022=financial_assist_2022>0)
 
-debt_accumulation_accounts_valid_location <- 
-  data.table(debt_accumulation_accounts)[!is.na(LOCATION_NO)]
 
-debt_accumulation_accounts_valid_location <- 
-  debt_accumulation_accounts_valid_location %>% 
-  mutate(had_shutoff=(ACCOUNT_NO %in% cutoff_info$ACCOUNT_NO))
+# Cutoff by year ####
+cutoff_reconnect <-
+  left_join(cutoff_info %>%
+              mutate(CUTOFF_DATE=mdy(EFFECTIVE_DT)) %>%
+              select(ACCOUNT_NO, PERSON_NO, LOCATION_NO, CUTOFF_DATE),
+            reconnect_info %>%
+              mutate(RECONNECT_DATE=mdy(EFFECTIVE_DT)) %>%
+              select(ACCOUNT_NO, PERSON_NO, LOCATION_NO, RECONNECT_DATE),
+            by=c("ACCOUNT_NO", "PERSON_NO", "LOCATION_NO"))
 
-no_debt_bills <- 
-  data.table(bill_info_filtered)[!(ACCOUNT_NO %in% unique(debt_accumulation_accounts$ACCOUNT_NO))]
+cutoff_reconnect$RECONNECT_DATE[is.na(cutoff_reconnect$RECONNECT_DATE)] <-
+  "2099-12-31"
 
-no_debt_accounts <- no_debt_bills %>% 
-  group_by(ACCOUNT_NO) %>% 
-  summarise(bills_accumulated=0,
-            accumulated_debt=sum(PREV_BILL_AMT)+sum(TOTAL_PAYMENTS),
-            AR_NET_AFTER_BILL=max(AR_NET_AFTER_BILL),
-            check=max(PREV_BILL_AMT)+max(BILL_GENERATED_CHGS),
-            date_check=max(PERIOD_TO_DT)) 
+cutoff_reconnect <- cutoff_reconnect %>%
+  mutate(ACCOUNT_NO=as.character(ACCOUNT_NO),
+         PERSON_NO=as.character(PERSON_NO),
+         LOCATION_NO=as.character(LOCATION_NO)) %>%
+  rowwise() %>%
+  mutate(cutoff_2019=
+           between(2019, year(CUTOFF_DATE), year(RECONNECT_DATE)),
+         cutoff_2020=
+           between(2020, year(CUTOFF_DATE), year(RECONNECT_DATE)),
+         cutoff_2021=
+           between(2021, year(CUTOFF_DATE), year(RECONNECT_DATE)),
+         cutoff_2022=
+           between(2022, year(CUTOFF_DATE), year(RECONNECT_DATE))) %>%
+  group_by(ACCOUNT_NO, PERSON_NO, LOCATION_NO) %>%
+  summarise(cutoff_2019=sum(cutoff_2019),
+            cutoff_2020=sum(cutoff_2020),
+            cutoff_2021=sum(cutoff_2021),
+            cutoff_2022=sum(cutoff_2022)) %>%
+  ungroup() %>%
+  mutate(cutoff_2019=cutoff_2019>0,
+         cutoff_2020=cutoff_2020>0,
+         cutoff_2021=cutoff_2021>0,
+         cutoff_2022=cutoff_2022>0)
 
-date_check2 <- data.table(date_check=unique(no_debt_accounts$date_check)) %>% 
-  mutate(dcf=mdy(date_check))
-
-no_debt_accounts <- left_join(no_debt_accounts, date_check2)
-
-no_debt_accounts <- no_debt_accounts %>% 
-  left_join(location_relation %>%
-              select(ACCT_TO_FRC_CONNECT, LOCATION_NO),
-            by=c("ACCOUNT_NO"="ACCT_TO_FRC_CONNECT"))
-
-no_debt_accounts <- no_debt_accounts %>% 
-  left_join(unique(geocode_address_info_subset))
-
-no_debt_accounts_valid_location <- 
-  data.table(no_debt_accounts)[!is.na(LOCATION_NO)]
-
-no_debt_accounts_valid_location <- 
-  no_debt_accounts_valid_location %>% 
-  mutate(had_shutoff=(ACCOUNT_NO %in% cutoff_info$ACCOUNT_NO))
-
-debt_dataset <- 
-  rbind(debt_accumulation_accounts_valid_location, 
-        no_debt_accounts_valid_location) %>% 
-  filter(match_indicator=="Match") %>% 
-  mutate(payment_plan=ACCOUNT_NO %in% financial_assist$ACCOUNT_NO)
-
-save(debt_dataset, file=paste0(working_data_dir, "/debt_dataset.RData"))
+# Save data
+save(delinquency_status,
+     payment_arrange_by_year,
+     financial_assist_by_year,
+     cutoff_reconnect,
+     file=paste0(working_data_dir, "/financial_info.RData"))
