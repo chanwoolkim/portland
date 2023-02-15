@@ -66,35 +66,27 @@ variable_map <- variable_map_test
 
 save(variable_map, file=paste0(working_data_dir, "/acs_variables.RData"))
 
-
 # Get the ACS Data ####
-acs_zip <- get_acs(
-  geography="zcta",
-  variables=variable_map$variable,
-  key=accessKey,
-  output="wide"
-)
-save(acs_zip, file=paste0(working_data_dir, "/acs_zip.RData"))
-
 acs_tract <- get_acs(
   geography="tract",
   variables=variable_map$variable,
   key=accessKey,
   output="wide",
   state="OR",
+  county=c("Multnomah", "Washington", "Clackamas")
 )
+
 acs_tract_geometry <- get_acs(
   geography="tract",
   variables=variable_map$variable,
   key=accessKey,
   output="wide",
   state="OR",
+  county=c("Multnomah", "Washington", "Clackamas"),
   geometry=TRUE,
 )
 save(acs_tract, acs_tract_geometry,
      file=paste0(working_data_dir, "/acs_tract.RData"))
-save(acs_zip, acs_tract, acs_tract_geometry,
-     file=paste0(working_data_dir, "/acs_data.RData"))
 
 
 # Portland statistics by tract ####
@@ -218,78 +210,3 @@ portland_demographics_tract_wide <-
 
 save(portland_demographics_tract_wide,
      file=paste0(working_data_dir, "/portland_demographics_tract.RData"))
-
-
-# Portland statistics by ZIP code ####
-zips <- unique(substr(geocode_address_info$POSTAL_CODE, 1, 5))
-zips <- zips[grep("^97", zips)]
-
-portland_acs_zip <- acs_zip %>% 
-  filter(GEOID %in% zips) %>% 
-  pivot_longer(cols=starts_with("DP"),
-               names_to="variable") %>% 
-  filter(substr(variable, 5, 6)!="PR") %>% 
-  mutate(group=substr(variable, 1, 9),
-         stat=substring(variable, first=10)) %>% 
-  filter(stat!="PM")  %>% 
-  pivot_wider(names_from=stat, values_from=value) %>% 
-  mutate_all(~replace(., is.na(.), 0)) %>% 
-  group_by(GEOID, group) %>% 
-  summarise(estimate=max(E),
-            percent_estimate=max(PE),
-            moe=max(M)) %>% 
-  ungroup() %>%
-  mutate(lookup=paste0(group, "E")) %>% 
-  left_join(variable_map %>% 
-              filter(type=="Estimate") %>% 
-              select(variable, category, metric_group, metric),
-            by=c("lookup"="variable")) %>%
-  select(-lookup)
-
-portland_demographics_zip <- portland_acs_zip %>% 
-  filter(group %in% demographic_stats)
-
-portland_demographics_zip <- portland_demographics_zip %>% 
-  select(-c(category, metric_group, metric))
-
-portland_demographics_zip <- portland_demographics_zip %>%
-  left_join(metric_lookup)
-
-portland_demographics_zip <- portland_demographics_zip %>% 
-  select(GEOID, group, metric_name, estimate, percent_estimate)
-
-portland_demographics_zip <- portland_demographics_zip %>% 
-  group_by(GEOID, group, metric_name, estimate, percent_estimate) %>% 
-  mutate(value=case_when(
-    percent_estimate > 0 ~ percent_estimate,
-    TRUE ~ estimate
-  )) %>%
-  ungroup()
-
-portland_demographics_zip_wide <- portland_demographics_zip %>% 
-  pivot_wider(id_cols=c("GEOID"),
-              names_from=metric_name,
-              values_from=value)
-
-portland_demographics_zip_wide <- portland_demographics_zip_wide %>% 
-  mutate(zip=GEOID)
-
-portland_demographics_zip_wide <- portland_demographics_zip_wide %>% 
-  group_by(zip) %>% 
-  summarise(total_hh=sum(total_hh),
-            hh_size=mean(hh_size),
-            unemployment=mean(unemployment),   
-            hh_income=mean(hh_income),
-            hh_earnings=mean(hh_earnings),
-            hh_retirement=mean(hh_retirement),
-            hh_ssi=mean(hh_ssi),
-            cash_assistance=sum(cash_assistance),
-            hh_cash_assistance=mean(hh_cash_assistance),
-            food_stamp=sum(food_stamp),
-            hh_poverty=mean(hh_poverty),
-            hispanic=mean(hispanic),
-            black=mean(black)) %>%
-  ungroup()
-
-save(portland_demographics_zip_wide,
-     file=paste0(working_data_dir, "/portland_demographics_zip.RData"))

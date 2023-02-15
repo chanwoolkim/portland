@@ -1,14 +1,7 @@
 # Descriptive Statistics
 
-# Basic data cleaning ####
-load(file=paste0(working_data_dir, "/analysis_info.RData"))
-load(file=paste0(working_data_dir, "/financial_info.RData"))
-load(file=paste0(working_data_dir, "/geocode_address_info_subset.RData"))
-load(file=paste0(working_data_dir, "/acs_tract.RData"))
+load(file=paste0(working_data_dir, "/account_info_analysis.RData"))
 load(file=paste0(working_data_dir, "/portland_demographics_tract.RData"))
-
-tracts <- read.csv(file=paste0(working_data_dir, "/portland_geoid.csv"),
-                   header=TRUE)$GEOID
 
 # First pass on the account info
 account_info_all <- account_info %>%
@@ -54,129 +47,8 @@ TS(tab, file="account_all", header=c("l|c|c"),
    pretty_rules=TRUE, output_path=output_dir, stand_alone=FALSE)
 
 
-# Choose valid accounts
-account_info <- account_info %>%
-  filter(BILLING_STAT=="REGLR",
-         ACCOUNT_CLASS_DFLT %in% c("RESSF", "RESMF", "ASST"))
-
-# Merge in location info and ACS info
-account_info_merge <-
-  left_join(account_info,
-            location_relation %>%
-              select(ACCT_TO_FRC_CONNECT,
-                     LOCATION_NO,
-                     PERSON_NO),
-            by=c("ACCOUNT_NO"="ACCT_TO_FRC_CONNECT",
-                 "PERSON_NO"))
-
-account_info_merge <-
-  left_join(account_info_merge,
-            geocode_address_info_subset %>%
-              select(LOCATION_NO, census_tract),
-            by="LOCATION_NO")
-
-account_info_merge <-
-  left_join(account_info_merge,
-            portland_demographics_tract_wide,
-            by=c("census_tract"="tract"))
-
-account_info_merge <- account_info_merge %>% unique()
-
-# Merge in all financial info
-account_info_merge <-
-  left_join(account_info_merge,
-            delinquency_status %>%
-              mutate(ACCOUNT_NO=as.character(ACCOUNT_NO),
-                     delinquency_match=TRUE),
-            by="ACCOUNT_NO") %>%
-  rowwise() %>%
-  mutate(n_bill=n_bill_2019+
-           n_bill_2020+
-           n_bill_2021+
-           n_bill_2022,
-         delinquent=delinquent_2019+
-           delinquent_2020+
-           delinquent_2021+
-           delinquent_2022,
-         delinquency_rate=delinquent/n_bill,
-         delinquent_amount=delinquent_amount_2019+
-           delinquent_amount_2020+
-           delinquent_amount_2021+
-           delinquent_amount_2022)
-
-account_info_merge <-
-  left_join(account_info_merge,
-            payment_arrange_by_year,
-            by="ACCOUNT_NO") %>%
-  replace_na(list(payment_arrange_2019=FALSE,
-                  payment_arrange_2020=FALSE,
-                  payment_arrange_2021=FALSE,
-                  payment_arrange_2022=FALSE)) %>%
-  mutate(payment_arrange=payment_arrange_2019 | 
-           payment_arrange_2020 |
-           payment_arrange_2021 | 
-           payment_arrange_2022)
-
-account_info_merge <-
-  left_join(account_info_merge,
-            financial_assist_by_year,
-            by="ACCOUNT_NO") %>%
-  replace_na(list(financial_assist_2019=FALSE,
-                  financial_assist_2020=FALSE,
-                  financial_assist_2021=FALSE,
-                  financial_assist_2022=FALSE)) %>%
-  mutate(financial_assist=financial_assist_2019 |
-           financial_assist_2020 |
-           financial_assist_2021 |
-           financial_assist_2022)
-
-account_info_merge <-
-  left_join(account_info_merge,
-            cutoff_reconnect %>%
-              select(ACCOUNT_NO, cutoff_2019, cutoff_2020, cutoff_2021, cutoff_2022),
-            by="ACCOUNT_NO") %>%
-  replace_na(list(cutoff_2019=FALSE,
-                  cutoff_2020=FALSE,
-                  cutoff_2021=FALSE,
-                  cutoff_2022=FALSE)) %>%
-  mutate(cutoff=cutoff_2019 | cutoff_2020 | cutoff_2021 | cutoff_2022)
-
-# Consider only the sample with valid Census tract
-account_info_merge <- account_info_merge %>%
-  filter(!is.na(census_tract)) %>%
-  unique()
-
-# Consider only the sample with one location code
-multiple_location <- account_info_merge %>%
-  group_by(ACCOUNT_NO) %>%
-  summarise(count=n()) %>%
-  filter(count>1)
-
-account_info_merge <- account_info_merge %>%
-  filter(!(ACCOUNT_NO %in% multiple_location$ACCOUNT_NO)) %>%
-  unique()
-
-# Consider only the sample with bill info
-account_info_merge <- account_info_merge %>%
-  filter(delinquency_match) %>%
-  unique() %>%
-  select(-delinquency_match)
-
-
 # Calculate descriptive statistics ####
-stats_calculate <- function(df, group_var, var) {
-  df <- df %>%
-    group_by({{group_var}}) %>%
-    summarise(variable=var,
-              size=n(),
-              mean := mean(get(var), na.rm=TRUE),
-              min := min(get(var), na.rm=TRUE),
-              max := max(get(var), na.rm=TRUE),
-              sd := sd(get(var), na.rm=TRUE))
-  return(df)
-}
-
-# Aggregate for the city
+# List of variables to work with
 payment_var_list <- c("delinquency_rate",
                       "delinquency_rate_2019",
                       "delinquency_rate_2020",
@@ -197,11 +69,24 @@ payment_var_list <- c("delinquency_rate",
                       "payment_arrange_2020",
                       "payment_arrange_2021",
                       "payment_arrange_2022",
+                      "arrange_amount_paid",
+                      "arrange_amount_terminated",
                       "financial_assist",
                       "financial_assist_2019",
                       "financial_assist_2020",
                       "financial_assist_2021",
-                      "financial_assist_2022")
+                      "financial_assist_2022",
+                      "tier_2020",
+                      "tier_2021",
+                      "tier_2022",
+                      "discount_amount",
+                      "discount_amount_2020",
+                      "discount_amount_2021",
+                      "discount_amount_2022",
+                      "crisis_voucher",
+                      "crisis_voucher_2020",
+                      "crisis_voucher_2021",
+                      "crisis_voucher_2022")
 
 payment_var_name_list <- c("Delinquency Rate",
                            "Delinquency Rate - 2019",
@@ -223,69 +108,48 @@ payment_var_name_list <- c("Delinquency Rate",
                            "Payment Arrangement - 2020",
                            "Payment Arrangement - 2021",
                            "Payment Arrangement - 2022",
+                           "Payment Arrangement - Good Amount",
+                           "Payment Arrangement - Terminated Amount",
                            "Financial Assistance",
                            "Financial Assistance - 2019",
                            "Financial Assistance - 2020",
                            "Financial Assistance - 2021",
-                           "Financial Assistance - 2022")
+                           "Financial Assistance - 2022",
+                           "LINC Tier - 2020",
+                           "LINC Tier - 2021",
+                           "LINC Tier - 2022",
+                           "Financial Assistance Amount",
+                           "Financial Assistance Amount - 2020",
+                           "Financial Assistance Amount - 2021",
+                           "Financial Assistance Amount - 2022",
+                           "Crisis Voucher Amount",
+                           "Crisis Voucher Amount - 2020",
+                           "Crisis Voucher Amount - 2021",
+                           "Crisis Voucher Amount - 2022")
 
-city_payment <- data.frame()
+payment_var_round_list <- c("delinquent_amount",
+                            "delinquent_amount_2019",
+                            "delinquent_amount_2020",
+                            "delinquent_amount_2021",
+                            "delinquent_amount_2022",
+                            "arrange_amount_paid",
+                            "arrange_amount_terminated",
+                            "discount_amount",
+                            "discount_amount_2020",
+                            "discount_amount_2021",
+                            "discount_amount_2022",
+                            "crisis_voucher",
+                            "crisis_voucher_2020",
+                            "crisis_voucher_2021",
+                            "crisis_voucher_2022")
 
-for (var in payment_var_list) {
-  city_payment <- rbind(city_payment,
-                        stats_calculate(account_info_merge, "", var))
-}
+payment_var_tier_list <- c("tier_2020",
+                           "tier_2021",
+                           "tier_2022")
 
-city_payment[,1] <- payment_var_name_list
-colnames(city_payment)[1] <- "Variable"
-
-tab_row <- function(row, hskip=TRUE, digit=3) {
-  if (hskip) {
-    out <- TR(paste0("\\quad ", city_payment[row, 1] %>% as.character())) %:%
-      TR(city_payment[row, 3:7] %>% as.numeric(), dec=c(5, digit, digit, digit, digit))
-  } else {
-    out <- TR(city_payment[row, 1] %>% as.character()) %:%
-      TR(city_payment[row, 3:7] %>% as.numeric(), dec=c(5, digit, digit, digit, digit))
-  }
-  return(out)
-}
-
-tab <- TR(c("Variable", "n", "Mean", "Min", "Max", "SD")) +
-  midrule() +
-  tab_row(1, FALSE) + tab_row(2) + tab_row(3) + tab_row(4) + tab_row(5) + midrule() +
-  tab_row(6, FALSE, 2) +
-  tab_row(7, TRUE, 2) +
-  tab_row(8, TRUE, 2) +
-  tab_row(9, TRUE, 2) +
-  tab_row(10, TRUE, 2) +
-  midrule() +
-  tab_row(11, FALSE) + tab_row(12) + tab_row(13) + tab_row(14) + tab_row(15) + midrule() +
-  tab_row(16, FALSE) + tab_row(17) + tab_row(18) + tab_row(19) + tab_row(20) + midrule() +
-  tab_row(21, FALSE) + tab_row(22) + tab_row(23) + tab_row(24) + tab_row(25)
-
-tab <- fix_0(tab)
-TS(tab, file="city_payment", header=c("l|c|c|c|c|c"),
-   pretty_rules=TRUE, output_path=output_dir, stand_alone=FALSE)
-
-# Aggregate for each Census tracts
-census_payment <- data.frame()
-
-for (var in payment_var_list) {
-  census_payment <- rbind(census_payment,
-                          stats_calculate(account_info_merge, census_tract, var))
-}
-
-census_payment <- left_join(census_payment,
-                            portland_demographics_tract_wide,
-                            by=c("census_tract"="tract"))
-
-census_payment_stat <- census_payment %>%
-  group_by(variable) %>%
-  summarise(sd := sqrt(wtd.var(mean, total_hh, na.rm=TRUE)),
-            min := min(mean, na.rm=TRUE),
-            max := max(mean, na.rm=TRUE),
-            mean := wtd.mean(mean, total_hh, na.rm=TRUE)) %>%
-  select(variable, mean, min, max, sd)
+payment_var_percent_list <-
+  payment_var_list[-which(payment_var_list %in%
+                            c(payment_var_round_list, payment_var_tier_list))]
 
 census_var_list <- c("total_hh",
                      "hh_size",
@@ -309,288 +173,489 @@ census_var_name_list <- c("Total Number of Households",
                           "\\% Black",
                           "Life Expectancy")
 
-census_character <- data.frame()
-for (var in census_var_list) {
-  var_stat <- portland_demographics_tract_wide %>%
-    group_by() %>%
-    summarise(sd := sqrt(wtd.var(get(var), total_hh, na.rm=TRUE)),
+census_var_round_list <- c("total_hh",
+                           "hh_income",
+                           "hh_cash_assistance",
+                           "life_expectancy")
+
+# Functions
+stats_calculate <- function(df, group_var, var) {
+  df <- df %>%
+    group_by({{group_var}}) %>%
+    summarise(variable=var,
+              size=n(),
+              mean := mean(get(var), na.rm=TRUE),
               min := min(get(var), na.rm=TRUE),
               max := max(get(var), na.rm=TRUE),
-              mean := wtd.mean(get(var), total_hh, na.rm=TRUE)) %>%
-    ungroup() %>%
-    mutate(variable=var) %>%
-    select(variable, mean, min, max, sd)
-  
-  census_character <- rbind(census_character, var_stat)
+              sd := sd(get(var), na.rm=TRUE),
+              sum := sum(get(var), na.rm=TRUE))
+  return(df)
 }
 
-census_character <- census_character %>%
-  mutate(mean=ifelse(variable %in% c("total_hh", "hh_income", "hh_cash_assistance"), round(mean), mean),
-         min=ifelse(variable %in% c("total_hh", "hh_income", "hh_cash_assistance"), round(min), min),
-         max=ifelse(variable %in% c("total_hh", "hh_income", "hh_cash_assistance"), round(max), max),
-         sd=ifelse(variable %in% c("total_hh", "hh_income", "hh_cash_assistance"), round(sd), sd))
-
-census_stat <- rbind(census_payment_stat,
-                     census_character %>% select(variable, mean, min, max, sd))
-census_stat$variable <- factor(census_stat$variable,
-                               levels=c(census_var_list, payment_var_list))
-census_stat <- census_stat %>% arrange(variable)
-
-census_stat[,1] <- c(census_var_name_list, payment_var_name_list)
-colnames(census_stat)[1] <- "Variable"
-
-tab_row <- function(row, hskip=TRUE, digit=3) {
-  if (hskip) {
-    out <- TR(paste0("\\quad ", census_stat[row, 1] %>% as.character())) %:%
-      TR(census_stat[row, 2:5] %>% as.numeric(), dec=digit)
+stats_df <- function(df, portland_demographics, census=FALSE) {
+  if (census) {
+    payment_stat <- data.frame()
+    for (var in payment_var_list) {
+      payment_stat <- rbind(payment_stat,
+                            stats_calculate(df, census_tract, var))
+    }
+    
+    census_payment_stat <- left_join(payment_stat,
+                                     portland_demographics,
+                                     by=c("census_tract"="tract"))
+    
+    census_stat <- census_payment_stat %>%
+      group_by(variable) %>%
+      summarise(sd := sqrt(wtd.var(mean, total_hh, na.rm=TRUE)),
+                min := min(mean, na.rm=TRUE),
+                max := max(mean, na.rm=TRUE),
+                mean := wtd.mean(mean, total_hh, na.rm=TRUE),
+                sum := sum(sum, na.rm=TRUE)) %>%
+      select(variable, mean, min, max, sd, sum)
+    
+    census_character <- data.frame()
+    for (var in census_var_list) {
+      var_stat <- portland_demographics %>%
+        group_by() %>%
+        summarise(sd := sqrt(wtd.var(get(var), total_hh, na.rm=TRUE)),
+                  min := min(get(var), na.rm=TRUE),
+                  max := max(get(var), na.rm=TRUE),
+                  mean := wtd.mean(get(var), total_hh, na.rm=TRUE),
+                  sum := sum(get(var), na.rm=TRUE)) %>%
+        ungroup() %>%
+        mutate(variable=var) %>%
+        select(variable, mean, min, max, sd, sum)
+      
+      census_character <- rbind(census_character, var_stat)
+    }
+    
+    census_character <- census_character %>%
+      mutate(mean=ifelse(variable %in% census_var_round_list, round(mean), mean),
+             min=ifelse(variable %in% census_var_round_list, round(min), min),
+             max=ifelse(variable %in% census_var_round_list, round(max), max),
+             sd=ifelse(variable %in% census_var_round_list, round(sd), sd),
+             sum=ifelse(variable %in% census_var_round_list, round(sum), sum))
+    
+    census_stat <- rbind(census_stat,
+                         census_character %>% select(variable, mean, min, max, sd, sum))
+    
+    census_stat <- census_stat %>%
+      mutate(mean=ifelse(variable %in% c(payment_var_round_list, census_var_round_list),
+                         round(mean), mean),
+             min=ifelse(variable %in% c(payment_var_round_list, census_var_round_list),
+                        round(min), min),
+             max=ifelse(variable %in% c(payment_var_round_list, census_var_round_list),
+                        round(max), max),
+             sd=ifelse(variable %in% c(payment_var_round_list, census_var_round_list),
+                       round(sd), sd),
+             sum=ifelse(variable %in% c(payment_var_round_list, census_var_round_list),
+                        round(sum), sum),
+             mean=ifelse(variable %in% payment_var_percent_list, mean*100, mean),
+             min=ifelse(variable %in% payment_var_percent_list, min*100, min),
+             max=ifelse(variable %in% payment_var_percent_list, max*100, max),
+             sd=ifelse(variable %in% payment_var_percent_list, sd*100, sd),
+             sum=ifelse(variable %in% payment_var_percent_list, sum*100, sum))
+    
+    census_stat$variable <- factor(census_stat$variable,
+                                   levels=c(census_var_list, payment_var_list))
+    census_stat <- census_stat %>% arrange(variable)
+    
+    census_stat[,1] <- c(census_var_name_list, payment_var_name_list)
+    colnames(census_stat)[1] <- "Variable"
+    df_out <- census_stat
   } else {
-    out <- TR(census_stat[row, 1] %>% as.character()) %:%
-      TR(census_stat[row, 2:5] %>% as.numeric(), dec=digit)
+    payment_stat <- data.frame()
+    for (var in payment_var_list) {
+      payment_stat <- rbind(payment_stat,
+                            stats_calculate(df, "", var))
+    }
+    
+    payment_stat <- payment_stat %>%
+      mutate(mean=ifelse(variable %in% payment_var_round_list, round(mean), mean),
+             min=ifelse(variable %in% payment_var_round_list, round(min), min),
+             max=ifelse(variable %in% payment_var_round_list, round(max), max),
+             sd=ifelse(variable %in% payment_var_round_list, round(sd), sd),
+             sum=ifelse(variable %in% payment_var_round_list, round(sum), sum),
+             mean=ifelse(variable %in% payment_var_percent_list, mean*100, mean),
+             min=ifelse(variable %in% payment_var_percent_list, min*100, min),
+             max=ifelse(variable %in% payment_var_percent_list, max*100, max),
+             sd=ifelse(variable %in% payment_var_percent_list, sd*100, sd),
+             sum=ifelse(variable %in% payment_var_percent_list, sum*100, sum))
+    
+    payment_stat[,1] <- payment_var_name_list
+    colnames(payment_stat)[1] <- "Variable"
+    df_out <- payment_stat
   }
-  return(out)
+  return(df_out)
 }
 
-tab <- TR(c("Variable", "Mean", "Min", "Max", "SD")) +
-  midrule() +
-  tab_row(1, FALSE, 5) + tab_row(2, TRUE, 2) + tab_row(3, FALSE, 5) + tab_row(4, TRUE, 5) +
-  tab_row(5, FALSE) + tab_row(6, FALSE) + tab_row(7, FALSE) +
-  tab_row(8, FALSE) + tab_row(9, FALSE) + tab_row(10, FALSE) +
-  midrule() +
-  tab_row(11, FALSE) + tab_row(12) + tab_row(13) + tab_row(14) + tab_row(15) + midrule() +
-  tab_row(16, FALSE) + tab_row(17) + tab_row(18) + tab_row(19) + tab_row(20) + midrule() +
-  tab_row(21, FALSE) + tab_row(22) + tab_row(23) + tab_row(24) + tab_row(25) + midrule() +
-  tab_row(26, FALSE) + tab_row(27) + tab_row(28) + tab_row(29) + tab_row(30) + midrule() +
-  tab_row(31, FALSE) + tab_row(32) + tab_row(33) + tab_row(34) + tab_row(35)
+tab_df <- function(df, n, census=FALSE) {
+  tab_row <- function(row, hskip=TRUE, sum=FALSE, digit=2) {
+    if (sum) {
+      if (hskip) {
+        out <- TR(paste0("\\quad ", df[row, 1] %>% as.character())) %:%
+          TR(df[row, 2:6] %>% as.numeric(), dec=digit)
+      } else {
+        out <- TR(df[row, 1] %>% as.character()) %:%
+          TR(df[row, 2:6] %>% as.numeric(), dec=digit)
+      }
+    } else {
+      if (hskip) {
+        out <- TR(paste0("\\quad ", df[row, 1] %>% as.character())) %:%
+          TR(df[row, 2:5] %>% as.numeric(), dec=digit)
+      } else {
+        out <- TR(df[row, 1] %>% as.character()) %:%
+          TR(df[row, 2:5] %>% as.numeric(), dec=digit)
+      }
+    }
+    return(out)
+  }
+  
+  add_dollar <- function(row_tab) {
+    for (col in 2:row_tab$ncol) {
+      row_tab$row_list[[1]][col] <-
+        str_c("\\$", row_tab$row_list[[1]][col])
+    }
+    return(row_tab)
+  }
+  
+  add_percent <- function(row_tab) {
+    for (col in 2:row_tab$ncol) {
+      row_tab$row_list[[1]][col] <-
+        str_c(row_tab$row_list[[1]][col], "\\%")
+    }
+    return(row_tab)
+  }
+  
+  if (census) {
+    tab <- TR(c("Variable", "Mean", "Min", "Max", "SD", "Sum")) +
+      midrule() +
+      tab_row(1, FALSE, TRUE, 5) +
+      tab_row(2, TRUE, FALSE, 2) +
+      add_dollar(tab_row(3, FALSE, FALSE, 5)) +
+      add_dollar(tab_row(4, TRUE, FALSE, 5))
+    for (i in 5:9) {tab <- tab + add_percent(tab_row(i, FALSE))}
+    tab <- tab + tab_row(10, FALSE, FALSE, 5) + midrule()
+    tab <- tab + add_percent(tab_row(11, FALSE))
+    for (i in 12:15) {tab <- tab + add_percent(tab_row(i))}
+    tab <- tab + midrule() + add_dollar(tab_row(16, FALSE, TRUE, 5))
+    for (i in 17:20) {tab <- tab + add_dollar(tab_row(i, TRUE, TRUE, 5))}
+    for (i in c(21, 26)) {
+      tab <- tab + midrule() + add_percent(tab_row(i, FALSE))
+      for (j in 1:4) {
+        tab <- tab + add_percent(tab_row(i+j))
+      }
+    }
+    tab <- tab + add_dollar(tab_row(31, TRUE, TRUE, 5)) +
+      add_dollar(tab_row(32, TRUE, TRUE, 5)) + midrule() +
+      add_percent(tab_row(33, FALSE))
+    for (j in 1:4) {
+      tab <- tab + add_percent(tab_row(33+j))
+    }
+    tab <- tab + midrule()
+    for (j in 1:3) {
+      tab <- tab + tab_row(37+j, FALSE, FALSE, 2)
+    }
+    for (i in c(41, 45)) {
+      tab <- tab + midrule() + add_dollar(tab_row(i, FALSE, TRUE, 5))
+      for (j in 1:3) {
+        tab <- tab + add_dollar(tab_row(i+j, TRUE, TRUE, 5))
+      }
+    }
+    tab <- tab + midrule() +
+      TR("n") %:% TR(c(n, NA, NA, NA, NA), dec=5)
+  } else {
+    tab <- TR(c("Variable", "Mean", "Min", "Max", "SD", "Sum")) +
+      midrule() + add_percent(tab_row(1, FALSE))
+    for (i in 2:5) {tab <- tab + add_percent(tab_row(i))}
+    tab <- tab + midrule() + add_dollar(tab_row(6, FALSE, TRUE, 5))
+    for (i in 7:10) {tab <- tab + add_dollar(tab_row(i, TRUE, TRUE, 5))}
+    for (i in c(11, 16)) {
+      tab <- tab + midrule() + add_percent(tab_row(i, FALSE))
+      for (j in 1:4) {
+        tab <- tab + add_percent(tab_row(i+j))
+      }
+    }
+    tab <- tab + add_dollar(tab_row(21, TRUE, TRUE, 5)) +
+      add_dollar(tab_row(22, TRUE, TRUE, 5)) + midrule() +
+      add_percent(tab_row(23, FALSE))
+    for (j in 1:4) {
+      tab <- tab + add_percent(tab_row(23+j))
+    }
+    tab <- tab + midrule()
+    for (j in 1:3) {
+      tab <- tab + tab_row(27+j, FALSE, FALSE, 2)
+    }
+    for (i in c(31, 35)) {
+      tab <- tab + midrule() + add_dollar(tab_row(i, FALSE, TRUE, 5))
+      for (j in 1:3) {
+        tab <- tab + add_dollar(tab_row(i+j, TRUE, TRUE, 5))
+      }
+    }
+    tab <- tab + midrule() +
+      TR("n") %:% TR(c(n, NA, NA, NA, NA), dec=5)
+  }
+  tab <- fix_0(tab)
+  return(tab)
+}
 
-tab <- fix_0(tab)
-TS(tab, file="census_character", header=c("l|c|c|c|c"),
+# Aggregate for the city
+city_payment <- stats_df(account_info_merge, portland_demographics_tract_wide) %>%
+  select(Variable, mean, min, max, sd, sum)
+
+tab <- tab_df(city_payment, n=nrow(account_info_merge))
+TS(tab, file="city_payment", header=c("l|c|c|c|c|c"),
+   pretty_rules=TRUE, output_path=output_dir, stand_alone=FALSE)
+
+# Aggregate for each Census tracts
+census_character <- stats_df(account_info_merge, portland_demographics_tract_wide, census=TRUE)
+
+tab <- tab_df(census_character,  n=nrow(portland_demographics_tract_wide), census=TRUE)
+TS(tab, file="census_character", header=c("l|c|c|c|c|c"),
    pretty_rules=TRUE, output_path=output_dir, stand_alone=FALSE)
 
 # Aggregate for Census tracts with highest delinquency rates
-highest_delinquency_tracts <- census_payment %>%
+payment_stat <- data.frame()
+for (var in payment_var_list) {
+  payment_stat <- rbind(payment_stat,
+                        stats_calculate(account_info_merge, census_tract, var))
+}
+
+census_payment_stat <- left_join(payment_stat,
+                                 portland_demographics_tract_wide,
+                                 by=c("census_tract"="tract"))
+
+highest_delinquency_tracts <- census_payment_stat %>%
   filter(variable=="delinquency_rate") %>%
   arrange(desc(mean))
 highest_delinquency_tracts <- highest_delinquency_tracts$census_tract[1:20]
 
-census_payment_highest_delinquency <- census_payment %>%
+highest_delinquency_account <- account_info_merge %>%
   filter(census_tract %in% highest_delinquency_tracts)
-
-census_payment_highest_delinquency_stat <-
-  census_payment_highest_delinquency %>%
-  group_by(variable) %>%
-  summarise(sd := sqrt(wtd.var(mean, total_hh, na.rm=TRUE)),
-            min := min(mean, na.rm=TRUE),
-            max := max(mean, na.rm=TRUE),
-            mean := wtd.mean(mean, total_hh, na.rm=TRUE)) %>%
-  select(variable, mean, min, max, sd)
 
 portland_demographics_highest_delinquency <-
   portland_demographics_tract_wide %>%
   filter(tract %in% highest_delinquency_tracts)
 
-census_character_highest_delinquency <- data.frame()
-for (var in census_var_list) {
-  var_stat <- portland_demographics_highest_delinquency %>%
-    group_by() %>%
-    summarise(sd := sqrt(wtd.var(get(var), total_hh, na.rm=TRUE)),
-              min := min(get(var), na.rm=TRUE),
-              max := max(get(var), na.rm=TRUE),
-              mean := wtd.mean(get(var), total_hh, na.rm=TRUE)) %>%
-    ungroup() %>%
-    mutate(variable=var) %>%
-    select(variable, mean, min, max, sd)
-  
-  census_character_highest_delinquency <- rbind(census_character_highest_delinquency, var_stat)
-}
+census_character_high_delinquency <-
+  stats_df(highest_delinquency_account,
+           portland_demographics_highest_delinquency, census=TRUE)
 
-census_character_highest_delinquency <- census_character_highest_delinquency %>%
-  mutate(mean=ifelse(variable %in% c("total_hh", "hh_income", "hh_cash_assistance"), round(mean), mean),
-         min=ifelse(variable %in% c("total_hh", "hh_income", "hh_cash_assistance"), round(min), min),
-         max=ifelse(variable %in% c("total_hh", "hh_income", "hh_cash_assistance"), round(max), max),
-         sd=ifelse(variable %in% c("total_hh", "hh_income", "hh_cash_assistance"), round(sd), sd))
-
-census_stat_highest_delinquency <-
-  rbind(census_payment_highest_delinquency_stat,
-        census_character_highest_delinquency %>%
-          select(variable, mean, min, max, sd))
-census_stat_highest_delinquency$variable <-
-  factor(census_stat_highest_delinquency$variable,
-         levels=c(census_var_list, payment_var_list))
-census_stat_highest_delinquency <- census_stat_highest_delinquency %>% arrange(variable)
-
-census_stat_highest_delinquency[,1] <- c(census_var_name_list, payment_var_name_list)
-colnames(census_stat_highest_delinquency)[1] <- "Variable"
-
-tab_row <- function(row, hskip=TRUE, digit=3) {
-  if (hskip) {
-    out <- TR(paste0("\\quad ", census_stat_highest_delinquency[row, 1] %>% as.character())) %:%
-      TR(census_stat_highest_delinquency[row, 2:5] %>% as.numeric(), dec=digit)
-  } else {
-    out <- TR(census_stat_highest_delinquency[row, 1] %>% as.character()) %:%
-      TR(census_stat_highest_delinquency[row, 2:5] %>% as.numeric(), dec=digit)
-  }
-  return(out)
-}
-
-tab <- TR(c("Variable", "Mean", "Min", "Max", "SD")) +
-  midrule() +
-  tab_row(1, FALSE, 5) + tab_row(2, TRUE, 2) + tab_row(3, FALSE, 5) + tab_row(4, TRUE, 5) +
-  tab_row(5, FALSE) + tab_row(6, FALSE) + tab_row(7, FALSE) +
-  tab_row(8, FALSE) + tab_row(9, FALSE) + tab_row(10, FALSE) +
-  midrule() +
-  tab_row(11, FALSE) + tab_row(12) + tab_row(13) + tab_row(14) + tab_row(15) + midrule() +
-  tab_row(16, FALSE) + tab_row(17) + tab_row(18) + tab_row(19) + tab_row(20) + midrule() +
-  tab_row(21, FALSE) + tab_row(22) + tab_row(23) + tab_row(24) + tab_row(25) + midrule() +
-  tab_row(26, FALSE) + tab_row(27) + tab_row(28) + tab_row(29) + tab_row(30) + midrule() +
-  tab_row(31, FALSE) + tab_row(32) + tab_row(33) + tab_row(34) + tab_row(35)
-
-tab <- fix_0(tab)
-TS(tab, file="census_character_high_delinquency", header=c("l|c|c|c|c"),
+tab <- tab_df(census_character_high_delinquency,
+              n=nrow(portland_demographics_highest_delinquency), census=TRUE)
+TS(tab, file="census_character_high_delinquency", header=c("l|c|c|c|c|c"),
    pretty_rules=TRUE, output_path=output_dir, stand_alone=FALSE)
 
 # Aggregate for Census tracts with highest cutoff rates
-highest_cutoff_tracts <- census_payment %>%
+highest_cutoff_tracts <- census_payment_stat %>%
   filter(variable=="cutoff") %>%
   arrange(desc(mean))
 highest_cutoff_tracts <- highest_cutoff_tracts$census_tract[1:20]
 
-census_payment_highest_cutoff <- census_payment %>%
+highest_cutoff_account <- account_info_merge %>%
   filter(census_tract %in% highest_cutoff_tracts)
-
-census_payment_highest_cutoff_stat <-
-  census_payment_highest_cutoff %>%
-  group_by(variable) %>%
-  summarise(sd := sqrt(wtd.var(mean, total_hh, na.rm=TRUE)),
-            min := min(mean, na.rm=TRUE),
-            max := max(mean, na.rm=TRUE),
-            mean := wtd.mean(mean, total_hh, na.rm=TRUE)) %>%
-  select(variable, mean, min, max, sd)
 
 portland_demographics_highest_cutoff <-
   portland_demographics_tract_wide %>%
   filter(tract %in% highest_cutoff_tracts)
 
-census_character_highest_cutoff <- data.frame()
-for (var in census_var_list) {
-  var_stat <- portland_demographics_highest_cutoff %>%
-    group_by() %>%
-    summarise(sd := sqrt(wtd.var(get(var), total_hh, na.rm=TRUE)),
-              min := min(get(var), na.rm=TRUE),
-              max := max(get(var), na.rm=TRUE),
-              mean := wtd.mean(get(var), total_hh, na.rm=TRUE)) %>%
-    ungroup() %>%
-    mutate(variable=var) %>%
-    select(variable, mean, min, max, sd)
-  
-  census_character_highest_cutoff <- rbind(census_character_highest_cutoff, var_stat)
-}
+census_character_high_cutoff <-
+  stats_df(highest_cutoff_account,
+           portland_demographics_highest_cutoff, census=TRUE)
 
-census_character_highest_cutoff <- census_character_highest_cutoff %>%
-  mutate(mean=ifelse(variable %in% c("total_hh", "hh_income", "hh_cash_assistance"), round(mean), mean),
-         min=ifelse(variable %in% c("total_hh", "hh_income", "hh_cash_assistance"), round(min), min),
-         max=ifelse(variable %in% c("total_hh", "hh_income", "hh_cash_assistance"), round(max), max),
-         sd=ifelse(variable %in% c("total_hh", "hh_income", "hh_cash_assistance"), round(sd), sd))
-
-census_stat_highest_cutoff <-
-  rbind(census_payment_highest_cutoff_stat,
-        census_character_highest_cutoff %>%
-          select(variable, mean, min, max, sd))
-census_stat_highest_cutoff$variable <-
-  factor(census_stat_highest_cutoff$variable,
-         levels=c(census_var_list, payment_var_list))
-census_stat_highest_cutoff <- census_stat_highest_cutoff %>% arrange(variable)
-
-census_stat_highest_cutoff[,1] <- c(census_var_name_list, payment_var_name_list)
-colnames(census_stat_highest_cutoff)[1] <- "Variable"
-
-tab_row <- function(row, hskip=TRUE, digit=3) {
-  if (hskip) {
-    out <- TR(paste0("\\quad ", census_stat_highest_cutoff[row, 1] %>% as.character())) %:%
-      TR(census_stat_highest_cutoff[row, 2:5] %>% as.numeric(), dec=digit)
-  } else {
-    out <- TR(census_stat_highest_cutoff[row, 1] %>% as.character()) %:%
-      TR(census_stat_highest_cutoff[row, 2:5] %>% as.numeric(), dec=digit)
-  }
-  return(out)
-}
-
-tab <- TR(c("Variable", "Mean", "Min", "Max", "SD")) +
-  midrule() +
-  tab_row(1, FALSE, 5) + tab_row(2, TRUE, 2) + tab_row(3, FALSE, 5) + tab_row(4, TRUE, 5) +
-  tab_row(5, FALSE) + tab_row(6, FALSE) + tab_row(7, FALSE) +
-  tab_row(8, FALSE) + tab_row(9, FALSE) + tab_row(10, FALSE) +
-  midrule() +
-  tab_row(11, FALSE) + tab_row(12) + tab_row(13) + tab_row(14) + tab_row(15) + midrule() +
-  tab_row(16, FALSE) + tab_row(17) + tab_row(18) + tab_row(19) + tab_row(20) + midrule() +
-  tab_row(21, FALSE) + tab_row(22) + tab_row(23) + tab_row(24) + tab_row(25) + midrule() +
-  tab_row(26, FALSE) + tab_row(27) + tab_row(28) + tab_row(29) + tab_row(30) + midrule() +
-  tab_row(31, FALSE) + tab_row(32) + tab_row(33) + tab_row(34) + tab_row(35)
-
-tab <- fix_0(tab)
-TS(tab, file="census_character_high_cutoff", header=c("l|c|c|c|c"),
+tab <- tab_df(census_character_high_cutoff,
+              n=nrow(portland_demographics_highest_cutoff), census=TRUE)
+TS(tab, file="census_character_high_cutoff", header=c("l|c|c|c|c|c"),
    pretty_rules=TRUE, output_path=output_dir, stand_alone=FALSE)
 
+# Aggregate for Census tracts with highest minority population
+highest_minority_tracts <- portland_demographics_tract_wide %>%
+  mutate(minority=hispanic+black) %>%
+  arrange(desc(minority))
+highest_minority_tracts <- highest_minority_tracts$tract[1:20]
 
-# Draw map of all the descriptive statistics ####
-# Base
-acs_tract_base <- acs_tract_geometry %>% filter(GEOID %in% tracts) %>% select(GEOID, geometry)
+highest_minority_account <- account_info_merge %>%
+  filter(census_tract %in% highest_minority_tracts)
 
-# Choose relevant payment statistics
-census_payment_base <- census_payment %>%
-  select(census_tract, variable, mean) %>%
-  spread(key=variable, value=mean)
+portland_demographics_highest_minority <-
+  portland_demographics_tract_wide %>%
+  filter(tract %in% highest_minority_tracts)
 
-census_base <- left_join(census_payment_base,
-                         portland_demographics_tract_wide,
-                         by=c("census_tract"="tract"))
+census_character_high_minority <-
+  stats_df(highest_minority_account,
+           portland_demographics_highest_minority, census=TRUE)
 
-acs_tract_map_base <- left_join(acs_tract_base %>%
-                                  mutate(census_tract=substr(GEOID, 6, 12)),
-                                census_base,
-                                by="census_tract")
+tab <- tab_df(census_character_high_minority,
+              n=nrow(portland_demographics_highest_minority), census=TRUE)
+TS(tab, file="census_character_high_minority", header=c("l|c|c|c|c|c"),
+   pretty_rules=TRUE, output_path=output_dir, stand_alone=FALSE)
 
-# Names
-var_list <- data.frame(var=c(payment_var_list, census_var_list),
-                       var_name=c(payment_var_name_list, census_var_name_list))
+# Aggregate for Census tracts with highest poverty rates
+highest_poverty_tracts <- portland_demographics_tract_wide %>%
+  arrange(desc(hh_poverty))
+highest_poverty_tracts <- highest_poverty_tracts$tract[1:20]
 
-var_list <- var_list %>%
-  mutate(var_name=gsub("\\", "", var_name, fixed=TRUE))
+highest_poverty_account <- account_info_merge %>%
+  filter(census_tract %in% highest_poverty_tracts)
 
-# Draw graphs!
-for (var in var_list$var) {
-  gg <- ggplot(acs_tract_map_base,
-               aes(fill=get(var))) + 
-    geom_sf() +
-    map_theme() +
-    labs(fill=var_list$var_name[which(var_list$var==var)]) +
-    scale_fill_gradient(low="#FBCF61", high="#00CC99", 
-                        space="Lab", guide="colourbar")
-  gg
-  ggsave(plot=gg,
-         file=paste0(output_dir, "/", var, "_map.png"),
-         width=6, height=4)
+portland_demographics_highest_poverty <-
+  portland_demographics_tract_wide %>%
+  filter(tract %in% highest_poverty_tracts)
+
+census_character_high_poverty <-
+  stats_df(highest_poverty_account,
+           portland_demographics_highest_poverty, census=TRUE)
+
+tab <- tab_df(census_character_high_poverty,
+              n=nrow(portland_demographics_highest_poverty), census=TRUE)
+TS(tab, file="census_character_high_poverty", header=c("l|c|c|c|c|c"),
+   pretty_rules=TRUE, output_path=output_dir, stand_alone=FALSE)
+
+# Table of counts for delinquency measures ####
+counts_calculate <- function(df) {
+  df <- df %>%
+    mutate(delinquent=delinquent>0,
+           delinquent_2019=delinquent_2019>0,
+           delinquent_2020=delinquent_2020>0,
+           delinquent_2021=delinquent_2021>0,
+           delinquent_2022=delinquent_2022>0,
+           arrange_paid=arrange_amount_paid>0,
+           arrange_terminated=arrange_amount_terminated>0,
+           tier_2020_1=tier_2020==1,
+           tier_2020_2=tier_2020==2,
+           tier_2021_1=tier_2021==1,
+           tier_2021_2=tier_2021==2,
+           tier_2022_1=tier_2022==1,
+           tier_2022_2=tier_2022==2,
+           crisis_voucher=!is.na(crisis_voucher),
+           crisis_voucher_2020=!is.na(crisis_voucher_2020),
+           crisis_voucher_2021=!is.na(crisis_voucher_2021),
+           crisis_voucher_2022=!is.na(crisis_voucher_2022),
+           group=NA) %>%
+    group_by(group) %>%
+    summarise(count=n(),
+              delinquent=sum(delinquent, na.rm=TRUE),
+              delinquent_2019=sum(delinquent_2019, na.rm=TRUE),
+              delinquent_2020=sum(delinquent_2020, na.rm=TRUE),
+              delinquent_2021=sum(delinquent_2021, na.rm=TRUE),
+              delinquent_2022=sum(delinquent_2022, na.rm=TRUE),
+              cutoff=sum(cutoff, na.rm=TRUE),
+              cutoff_2019=sum(cutoff_2019, na.rm=TRUE),
+              cutoff_2020=sum(cutoff_2020, na.rm=TRUE),
+              cutoff_2021=sum(cutoff_2021, na.rm=TRUE),
+              cutoff_2022=sum(cutoff_2022, na.rm=TRUE),
+              payment_arrange=sum(payment_arrange, na.rm=TRUE),
+              payment_arrange_2019=sum(payment_arrange_2019, na.rm=TRUE),
+              payment_arrange_2020=sum(payment_arrange_2020, na.rm=TRUE),
+              payment_arrange_2021=sum(payment_arrange_2021, na.rm=TRUE),
+              payment_arrange_2022=sum(payment_arrange_2022, na.rm=TRUE),
+              arrange_paid=sum(arrange_paid, na.rm=TRUE),
+              arrange_terminated=sum(arrange_terminated, na.rm=TRUE),
+              financial_assist=sum(financial_assist, na.rm=TRUE),
+              financial_assist_2019=sum(financial_assist_2019, na.rm=TRUE),
+              financial_assist_2020=sum(financial_assist_2020, na.rm=TRUE),
+              financial_assist_2021=sum(financial_assist_2021, na.rm=TRUE),
+              financial_assist_2022=sum(financial_assist_2022, na.rm=TRUE),
+              tier_2020_1=sum(tier_2020_1, na.rm=TRUE),
+              tier_2020_2=sum(tier_2020_2, na.rm=TRUE),
+              tier_2021_1=sum(tier_2021_1, na.rm=TRUE),
+              tier_2021_2=sum(tier_2021_2, na.rm=TRUE),
+              tier_2022_1=sum(tier_2022_1, na.rm=TRUE),
+              tier_2022_2=sum(tier_2022_2, na.rm=TRUE),
+              crisis_voucher=sum(crisis_voucher, na.rm=TRUE),
+              crisis_voucher_2020=sum(crisis_voucher_2020, na.rm=TRUE),
+              crisis_voucher_2021=sum(crisis_voucher_2021, na.rm=TRUE),
+              crisis_voucher_2022=sum(crisis_voucher_2022, na.rm=TRUE))
+  return(df)
 }
 
-acs_tract_map_base <- acs_tract_map_base %>%
-  mutate(high_delinquency=census_tract %in% highest_delinquency_tracts,
-         high_cutoff=census_tract %in% highest_cutoff_tracts)
+count_all <- rbind(counts_calculate(account_info_merge) %>% select(-group) %>% mutate(data="all"),
+                   counts_calculate(highest_delinquency_account) %>% select(-group) %>% mutate(data="delinquency"),
+                   counts_calculate(highest_cutoff_account) %>% select(-group) %>% mutate(data="cutoff"),
+                   counts_calculate(highest_minority_account) %>% select(-group) %>% mutate(data="minority"),
+                   counts_calculate(highest_poverty_account) %>% select(-group) %>% mutate(data="poverty"))
+count_all <- count_all %>%
+  pivot_longer(!data, names_to="variable", values_to="count") %>%
+  pivot_wider(id_cols=variable, 
+              names_from=data, 
+              values_from=count,
+              values_fill=NA)
 
-gg <- ggplot(acs_tract_map_base,
-             aes(fill=high_delinquency)) + 
-  geom_sf() +
-  map_theme() +
-  labs(fill="Highest Delinquency Area")
-gg
-ggsave(plot=gg,
-       file=paste0(output_dir, "/high_delinquency_map.png"),
-       width=6, height=4)
+count_var_name_list <- c("Total Count",
+                         "Delinquent",
+                         "Delinquent - 2019",
+                         "Delinquent - 2020",
+                         "Delinquent - 2021",
+                         "Delinquent - 2022",
+                         "Cutoff",
+                         "Cutoff - 2019",
+                         "Cutoff - 2020",
+                         "Cutoff - 2021",
+                         "Cutoff - 2022",
+                         "Payment Arrangement",
+                         "Payment Arrangement - 2019",
+                         "Payment Arrangement - 2020",
+                         "Payment Arrangement - 2021",
+                         "Payment Arrangement - 2022",
+                         "Payment Arrangement - Good",
+                         "Payment Arrangement - Terminated",
+                         "Financial Assistance",
+                         "Financial Assistance - 2019",
+                         "Financial Assistance - 2020",
+                         "Financial Assistance - 2021",
+                         "Financial Assistance - 2022",
+                         "Tier 1 - 2020",
+                         "Tier 2 - 2020",
+                         "Tier 1 - 2021",
+                         "Tier 2 - 2021",
+                         "Tier 1 - 2022",
+                         "Tier 2 - 2022",
+                         "Crisis Voucher",
+                         "Crisis Voucher - 2020",
+                         "Crisis Voucher - 2021",
+                         "Crisis Voucher - 2022")
 
-gg <- ggplot(acs_tract_map_base,
-             aes(fill=high_cutoff)) + 
-  geom_sf() +
-  map_theme() +
-  labs(fill="Highest Cutoff Area")
-gg
-ggsave(plot=gg,
-       file=paste0(output_dir, "/high_cutoff_map.png"),
-       width=6, height=4)
+count_all <- count_all %>% mutate(Variable=count_var_name_list) %>%
+  select(Variable, all, delinquency, cutoff, minority, poverty)
+
+tab_count <- function(df) {
+  tab_row <- function(row, hskip=TRUE, digit=5) {
+    if (hskip) {
+      out <- TR(paste0("\\quad ", df[row, 1] %>% as.character())) %:%
+        TR(df[row, 2:6] %>% as.numeric(), dec=digit)
+    } else {
+      out <- TR(df[row, 1] %>% as.character()) %:%
+        TR(df[row, 2:6] %>% as.numeric(), dec=digit)
+    }
+    return(out)
+  }
+  
+  tab <- TR(c("Variable", "All",
+              "High Delinquency", "High Cutoff",
+              "High Minority", "High Poverty")) +
+    midrule() +
+    tab_row(1, FALSE)
+  for (i in c(2, 7, 12)) {
+    tab <- tab + midrule() + tab_row(i, FALSE)
+    for (j in 1:4) {
+      tab <- tab + tab_row(i+j)
+    }
+  }
+  tab <- tab + tab_row(17) + tab_row(18) + midrule() +
+    tab_row(19, FALSE)
+  for (j in 1:4) {
+    tab <- tab + tab_row(19+j)
+  }
+  tab <- tab + midrule()
+  for (j in 1:6) {
+    tab <- tab + tab_row(23+j)
+  }
+  tab <- tab + midrule() +
+    tab_row(30, FALSE) + tab_row(31) + tab_row(32) + tab_row(33)
+  tab <- fix_0(tab)
+  return(tab)
+}
+
+tab <- tab_count(count_all)
+TS(tab, file="count_all", header=c("l|c|c|c|c|c"),
+   pretty_rules=TRUE, output_path=output_dir, stand_alone=FALSE)
