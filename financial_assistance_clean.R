@@ -4,6 +4,13 @@ load(file=paste0(working_data_dir, "/analysis_info.RData"))
 
 
 # Payment arrangement amount ####
+payment_arrange_amount <- payment_arrangement_info %>%
+  mutate(amount_paid=AMOUNT_DUE-OUTSTANDING_AMT) %>%
+  group_by(PAY_ARRANGEMENT_REF) %>%
+  summarise(amount_due=sum(AMOUNT_DUE, na.rm=TRUE),
+            amount_paid=sum(amount_paid, na.rm=TRUE),
+            amount_outstanding=sum(OUTSTANDING_AMT, na.rm=TRUE))
+
 payment_arrange_amount <- payment_arrangement %>%
   filter(!grepl("^[0-9]", STATUS_CD)) %>%
   mutate(STATUS_CD=trimws(STATUS_CD),
@@ -13,17 +20,14 @@ payment_arrange_amount <- payment_arrangement %>%
          payment_arrange_start_year=year(payment_arrange_start),
          payment_arrange_end_year=year(payment_arrange_end),
          ARRANGEMENT_AMT=as.numeric(ARRANGEMENT_AMT)) %>%
+  right_join(payment_arrange_amount, by="PAY_ARRANGEMENT_REF") %>%
   filter(payment_arrange_start_year>=2019 |
            payment_arrange_end_year>=2019) %>%
-  group_by(SS_ACCOUNT_NO, STATUS_CD) %>%
-  summarise(ARRANGEMENT_AMT=sum(ARRANGEMENT_AMT, na.rm=TRUE)) %>%
-  ungroup() %>%
-  pivot_wider(id_cols=SS_ACCOUNT_NO, 
-              names_from=STATUS_CD, 
-              values_from=ARRANGEMENT_AMT,
-              values_fill=NA) %>%
-  rename(arrange_amount_paid=P,
-         arrange_amount_terminated=T)
+  group_by(SS_ACCOUNT_NO) %>%
+  summarise(arrange_amount_due=sum(amount_due, na.rm=TRUE),
+            arrange_amount_paid=sum(amount_paid, na.rm=TRUE),
+            arrange_amount_terminated=sum(amount_outstanding, na.rm=TRUE)) %>%
+  ungroup()
 
 # Payment arrangement by year
 payment_arrange_by_year <- payment_arrangement %>%

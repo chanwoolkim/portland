@@ -29,9 +29,10 @@ no_plan_bill <- bill_info_filtered %>%
   group_by(ACCOUNT_NO, due_year) %>%
   summarise(n_bill=n(),
             delinquent=sum(delinquent, na.rm=TRUE),
-            delinquent_amount=sum(delinquent_amount, na.rm=TRUE)) %>%
+            delinquent_amount=sum(delinquent_amount, na.rm=TRUE),
+            total_bill=sum(PREV_BILL_AMT, na.rm=TRUE)) %>%
   ungroup() %>%
-  select(ACCOUNT_NO, due_year, n_bill, delinquent, delinquent_amount)
+  select(ACCOUNT_NO, due_year, n_bill, delinquent, delinquent_amount, total_bill)
 
 # Those on a payment plan
 plan_bill <- bill_info_filtered %>%
@@ -44,23 +45,33 @@ plan_bill <- bill_info_filtered %>%
   group_by(ACCOUNT_NO, due_year) %>%
   summarise(n_bill=n(),
             delinquent=sum(delinquent, na.rm=TRUE),
-            delinquent_amount=sum(delinquent_amount, na.rm=TRUE)) %>%
+            delinquent_amount=sum(delinquent_amount, na.rm=TRUE),
+            total_bill=sum(PREV_BILL_AMT[SOURCE_CD=="QB2"], na.rm=TRUE)) %>%
   ungroup() %>%
-  select(ACCOUNT_NO, due_year, n_bill, delinquent, delinquent_amount)
+  select(ACCOUNT_NO, due_year, n_bill, delinquent, delinquent_amount, total_bill)
 
 delinquency_status <- rbind(no_plan_bill, plan_bill) %>%
   group_by(ACCOUNT_NO, due_year) %>%
   summarise(n_bill=sum(n_bill, na.rm=TRUE),
             delinquent=sum(delinquent, na.rm=TRUE),
-            delinquent_amount=sum(delinquent_amount, na.rm=TRUE)) %>%
+            delinquent_amount=sum(delinquent_amount, na.rm=TRUE),
+            total_bill=sum(total_bill, na.rm=TRUE)) %>%
   ungroup() %>%
-  mutate(delinquency_rate=delinquent/n_bill) %>%
+  mutate(delinquency_rate=delinquent/n_bill,
+         delinquency_amount_rate=delinquent_amount/total_bill,
+         delinquency_amount_rate=ifelse(delinquency_amount_rate>1,
+                                        1,
+                                        delinquency_amount_rate),
+         delinquency_amount_rate=ifelse(is.na(delinquency_amount_rate),
+                                        0,
+                                        delinquency_amount_rate)) %>%
   pivot_wider(id_cols=ACCOUNT_NO, 
               names_from=due_year, 
               values_from=c("n_bill",
                             "delinquent",
                             "delinquency_rate",
-                            "delinquent_amount"),
+                            "delinquent_amount",
+                            "delinquency_amount_rate"),
               values_fill=0)
 
 
@@ -68,11 +79,21 @@ delinquency_status <- rbind(no_plan_bill, plan_bill) %>%
 cutoff_reconnect <-
   left_join(cutoff_info %>%
               mutate(CUTOFF_DATE=mdy(EFFECTIVE_DT)) %>%
-              select(ACCOUNT_NO, PERSON_NO, LOCATION_NO, CUTOFF_DATE),
+              arrange(ACCOUNT_NO, PERSON_NO, LOCATION_NO, CUTOFF_DATE) %>%
+              group_by(ACCOUNT_NO, PERSON_NO, LOCATION_NO) %>%
+              mutate(id=row_number()) %>%
+              ungroup() %>%
+              select(ACCOUNT_NO, PERSON_NO, LOCATION_NO, CUTOFF_DATE, id),
             reconnect_info %>%
               mutate(RECONNECT_DATE=mdy(EFFECTIVE_DT)) %>%
-              select(ACCOUNT_NO, PERSON_NO, LOCATION_NO, RECONNECT_DATE),
-            by=c("ACCOUNT_NO", "PERSON_NO", "LOCATION_NO"))
+              arrange(ACCOUNT_NO, PERSON_NO, LOCATION_NO, RECONNECT_DATE) %>%
+              group_by(ACCOUNT_NO, PERSON_NO, LOCATION_NO) %>%
+              mutate(id=row_number()) %>%
+              ungroup() %>%
+              select(ACCOUNT_NO, PERSON_NO, LOCATION_NO, RECONNECT_DATE, id),
+            by=c("ACCOUNT_NO", "PERSON_NO", "LOCATION_NO", "id")) %>%
+  select(-id) %>%
+  arrange(ACCOUNT_NO, PERSON_NO, LOCATION_NO, CUTOFF_DATE)
 
 cutoff_reconnect$RECONNECT_DATE[is.na(cutoff_reconnect$RECONNECT_DATE)] <-
   "2099-12-31"

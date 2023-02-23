@@ -7,6 +7,7 @@ start_time <- Sys.time()
 library(acs)
 library(data.table)
 library(ggplot2)
+library(ggrepel)
 library(glue)
 library(Hmisc)
 library(httr)
@@ -67,6 +68,44 @@ fte_theme <- function() {
       theme(plot.margin=unit(c(0.35, 0.2, 0.3, 0.35), "cm"))
 }
 
+pie_theme <- function() {
+  # Generate the colours for the chart procedurally with RColorBrewer
+  palette <- brewer.pal("Greys", n=9)
+  color.background="white"
+    color.grid.major=palette[3]
+    color.axis.text=palette[7]
+    color.axis.title=palette[7]
+    color.title=palette[9]
+    
+    # Begin construction of chart
+    theme_bw(base_size=8, base_family="serif") +
+      
+      # Set the entire chart region to a light gray colour
+      theme(panel.background=element_rect(fill=color.background, color=color.background)) +
+      theme(plot.background=element_rect(fill=color.background, color=color.background)) +
+      theme(panel.border=element_rect(color=color.background)) +
+      
+      # Format the grid
+      theme(panel.grid.major=element_blank()) +
+      theme(panel.grid.minor=element_blank()) +
+      theme(axis.ticks=element_blank()) +
+      
+      # Format the legend
+      theme(legend.position="bottom") +
+      theme(legend.background=element_rect(fill=color.background)) +
+      theme(legend.title=element_text(size=9, color=color.axis.title, family="serif")) +
+      theme(legend.text=element_text(size=8, color=color.axis.title, family="serif")) +
+      theme(legend.box.background=element_rect(colour=color.grid.major)) +
+      theme(legend.title.align=0.5) +
+      
+      # Set title and axis labels, and format these and tick marks
+      theme(axis.text=element_blank()) +
+      theme(axis.title.x=element_blank()) +
+      theme(axis.title.y=element_blank()) +
+      
+      # Plot margins
+      theme(plot.margin=unit(c(0.35, 0.2, 0.3, 0.35), "cm"))
+}
 
 map_theme <- function() {
   # Generate the colours for the chart procedurally with RColorBrewer
@@ -134,6 +173,8 @@ source(paste0(code_dir, "/merge_data.R"))
 # Analysis
 source(paste0(code_dir, "/descriptive_statistics.R"))
 source(paste0(code_dir, "/descriptive_statistics_graph.R"))
+source(paste0(code_dir, "/descriptive_statistics_resmf.R"))
+source(paste0(code_dir, "/descriptive_statistics_payment.R"))
 
 end_time <- Sys.time()
 end_time-start_time

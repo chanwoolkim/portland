@@ -46,6 +46,31 @@ tab <- fix_0(tab)
 TS(tab, file="account_all", header=c("l|c|c"),
    pretty_rules=TRUE, output_path=output_dir, stand_alone=FALSE)
 
+# Total delinquent amount decomposition
+delinquency_amount_type <- account_info_merge %>%
+  group_by(ACCOUNT_CLASS_DFLT) %>%
+  summarise(delinquent_amount=sum(delinquent_amount, na.rm=TRUE)) %>%
+  mutate(class_description=case_when(
+    ACCOUNT_CLASS_DFLT=="RESSF" ~ "Residential Single Family",
+    ACCOUNT_CLASS_DFLT=="RESMF" ~ "Residential Multi Family"),
+    delinquent_amount_round=str_c("$",
+                                  round(delinquent_amount/1000000, 2),
+                                  " Million"))
+
+gg <- ggplot(delinquency_amount_type,
+             aes(x="", y=delinquent_amount, fill=class_description)) + 
+  geom_bar(stat="identity", width=1) +
+  geom_text(aes(label=delinquent_amount_round),
+            position=position_stack(vjust=0.5),
+            color="white", size=4, family="serif") +
+  coord_polar("y", start=0) +
+  pie_theme() +
+  labs(fill="Account Type")
+gg
+ggsave(plot=gg,
+       file=paste0(output_dir, "/delinquent_amount_pie.png"),
+       width=6, height=4)
+
 
 # Calculate descriptive statistics ####
 # List of variables to work with
@@ -399,6 +424,10 @@ tab_df <- function(df, n, census=FALSE) {
   return(tab)
 }
 
+# Only consider single family
+account_info_merge <- account_info_merge %>%
+  filter(ACCOUNT_CLASS_DFLT %in% c("RESSF", "ASST"))
+
 # Aggregate for the city
 city_payment <- stats_df(account_info_merge, portland_demographics_tract_wide) %>%
   select(Variable, mean, min, max, sd, sum)
@@ -519,7 +548,7 @@ counts_calculate <- function(df) {
            delinquent_2020=delinquent_2020>0,
            delinquent_2021=delinquent_2021>0,
            delinquent_2022=delinquent_2022>0,
-           arrange_paid=arrange_amount_paid>0,
+           arrange_paid=arrange_amount_terminated==0,
            arrange_terminated=arrange_amount_terminated>0,
            tier_2020_1=tier_2020==1,
            tier_2020_2=tier_2020==2,
@@ -658,4 +687,55 @@ tab_count <- function(df) {
 
 tab <- tab_count(count_all)
 TS(tab, file="count_all", header=c("l|c|c|c|c|c"),
+   pretty_rules=TRUE, output_path=output_dir, stand_alone=FALSE)
+
+
+# Regression ####
+# Choose relevant payment statistics
+census_payment_base <- census_payment_stat %>%
+  select(census_tract, variable, mean) %>%
+  spread(key=variable, value=mean)
+
+census_base <- left_join(census_payment_base,
+                         portland_demographics_tract_wide,
+                         by=c("census_tract"="tract"))
+
+model1 <- glm(delinquency_rate~black+hispanic+food_stamp+hh_poverty,
+              weights=total_hh,
+              family=binomial(link='logit'),
+              data=census_base)
+
+model2 <- glm(cutoff~black+hispanic+food_stamp+hh_poverty,
+              weights=total_hh,
+              family=binomial(link='logit'),
+              data=census_base)
+
+tab_data <- data.frame(coef_1=summary(model1)$coefficients[,1],
+                       coef_2=summary(model2)$coefficients[,1],
+                       se_1=summary(model1)$coefficients[,2],
+                       se_2=summary(model2)$coefficients[,2],
+                       p_1=summary(model1)$coefficients[,4],
+                       p_2=summary(model2)$coefficients[,4])
+
+tab <- TR(c("", "Delinquency Rate", "Cutoff Rate")) +
+  TR(c("", "(1)", "(2)")) +
+  midrule() +
+  TR("Black") %:% TR(tab_data[2,1:2] %>% as.numeric(), dec=3,
+                     pvalues=tab_data[2,5:6] %>% as.numeric()) +
+  TR("") %:% TR(tab_data[2,3:4] %>% as.numeric(), dec=3, se=T) +
+  TR("Hispanic") %:% TR(tab_data[3,1:2] %>% as.numeric(), dec=3,
+                        pvalues=tab_data[3,5:6] %>% as.numeric()) +
+  TR("") %:% TR(tab_data[3,3:4] %>% as.numeric(), dec=3, se=T) +
+  TR("Food Stamp") %:% TR(tab_data[4,1:2] %>% as.numeric(), dec=3,
+                          pvalues=tab_data[4,5:6] %>% as.numeric()) +
+  TR("") %:% TR(tab_data[4,3:4] %>% as.numeric(), dec=3, se=T) +
+  TR("Poverty") %:% TR(tab_data[5,1:2] %>% as.numeric(), dec=3, 
+                       pvalues=tab_data[5,5:6] %>% as.numeric()) +
+  TR("") %:% TR(tab_data[5,3:4] %>% as.numeric(), dec=3, se=T) +
+  TR("(Intercept)") %:% TR(tab_data[1,1:2] %>% as.numeric(), dec=3, 
+                           pvalues=tab_data[1,5:6] %>% as.numeric()) +
+  TR("") %:% TR(tab_data[1,3:4] %>% as.numeric(), dec=3, se=T)
+
+tab
+TS(tab, file="character_reg", header=c("lcc"),
    pretty_rules=TRUE, output_path=output_dir, stand_alone=FALSE)

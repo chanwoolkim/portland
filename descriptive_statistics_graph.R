@@ -1,15 +1,7 @@
+# Graphs for descriptive statistics
 
 # Draw map of all the descriptive statistics ####
-
 # Choose relevant payment statistics
-census_payment_base <- census_payment_stat %>%
-  select(census_tract, variable, mean) %>%
-  spread(key=variable, value=mean)
-
-census_base <- left_join(census_payment_base,
-                         portland_demographics_tract_wide,
-                         by=c("census_tract"="tract"))
-
 acs_tract_map_base <- left_join(acs_tract_base %>%
                                   mutate(census_tract=substr(GEOID, 6, 12)),
                                 census_base,
@@ -22,7 +14,7 @@ var_list <- data.frame(var=c(payment_var_list, census_var_list),
 var_list <- var_list %>%
   mutate(var_name=gsub("\\", "", var_name, fixed=TRUE))
 
-# Draw graphs!
+# Draw maps!
 for (var in var_list$var) {
   gg <- ggplot(acs_tract_map_base,
                aes(fill=get(var))) + 
@@ -55,7 +47,8 @@ gg <- ggplot(acs_tract_map_base,
              aes(fill=high_delinquency)) + 
   geom_sf() +
   map_theme() +
-  labs(fill="Highest Delinquency Area")
+  labs(fill="Highest Delinquency Area") +
+  scale_fill_manual(values=colours_set)
 gg
 ggsave(plot=gg,
        file=paste0(output_dir, "/high_delinquency_map.png"),
@@ -65,7 +58,8 @@ gg <- ggplot(acs_tract_map_base,
              aes(fill=high_cutoff)) + 
   geom_sf() +
   map_theme() +
-  labs(fill="Highest Cutoff Area")
+  labs(fill="Highest Cutoff Area") +
+  scale_fill_manual(values=colours_set)
 gg
 ggsave(plot=gg,
        file=paste0(output_dir, "/high_cutoff_map.png"),
@@ -75,7 +69,8 @@ gg <- ggplot(acs_tract_map_base,
              aes(fill=high_minority)) + 
   geom_sf() +
   map_theme() +
-  labs(fill="Highest Minority Area")
+  labs(fill="Highest Minority Area") +
+  scale_fill_manual(values=colours_set)
 gg
 ggsave(plot=gg,
        file=paste0(output_dir, "/high_minority_map.png"),
@@ -85,13 +80,15 @@ gg <- ggplot(acs_tract_map_base,
              aes(fill=high_poverty)) + 
   geom_sf() +
   map_theme() +
-  labs(fill="Highest Poverty Area")
+  labs(fill="Highest Poverty Area") +
+  scale_fill_manual(values=colours_set)
 gg
 ggsave(plot=gg,
        file=paste0(output_dir, "/high_poverty_map.png"),
        width=6, height=4)
 
-# Histogram for delinquency rates and cutoff rates
+
+# Histogram for delinquency rates and cutoff rates ####
 census_base <- census_base %>%
   mutate(minority=hispanic+black,
          delinquency_tract=census_tract %in% highest_delinquency_tracts,
@@ -120,7 +117,8 @@ for (var in delinquency_var_list) {
     fte_theme() +
     xlab("Delinquency Rate") + ylab("Count") +
     labs(fill="Highest Delinquency Area") +
-    scale_x_continuous(labels=scales::percent)
+    scale_x_continuous(labels=scales::percent) +
+    scale_fill_manual(values=colours_set)
   gg
   ggsave(plot=gg,
          file=paste0(output_dir, "/", var, "_hist.png"),
@@ -140,81 +138,104 @@ for (var in cutoff_var_list) {
     fte_theme() +
     xlab("Cutoff Rate") + ylab("Count") +
     labs(fill="Highest Cutoff Area") +
-    scale_x_continuous(labels=scales::percent)
+    scale_x_continuous(labels=scales::percent) +
+    scale_fill_manual(values=colours_set)
   gg
   ggsave(plot=gg,
          file=paste0(output_dir, "/", var, "_hist.png"),
          width=6, height=4)
 }
 
-gg <- ggplot(census_base,
-             aes(x=minority/100, fill=minority_tract)) +
-  geom_histogram() +
+
+# Bar charts ####
+# Prepare data
+screen_census <- function(df, type) {
+  df <- df %>%
+    filter(Variable %in% c("\\% Food Stamp",
+                           "\\% Below Poverty Line",
+                           "\\% Hispanic",
+                           "\\% Black")) %>%
+    mutate(type=type)
+  return(df)
+}
+
+character_by_hit <-
+  rbind(screen_census(census_character, "All"),
+        screen_census(census_character_high_delinquency, "High Delinquency"),
+        screen_census(census_character_high_cutoff, "High Cutoff")) %>%
+  mutate(Variable=factor(Variable, levels=c("\\% Food Stamp",
+                                            "\\% Below Poverty Line",
+                                            "\\% Hispanic",
+                                            "\\% Black")),
+         type=factor(type, levels=c("All", "High Delinquency", "High Cutoff")))
+
+gg <- ggplot(character_by_hit,
+             aes(x=Variable, y=mean, fill=type)) + 
+  geom_bar(position=position_dodge(),
+           stat="identity", alpha=0.7) +
+  geom_errorbar(aes(ymin=mean-sd, ymax=mean+sd),
+                position=position_dodge(0.9),
+                width=0.2, colour="orange", alpha=0.7, size=0.3) +
+  coord_flip() +
   fte_theme() +
-  xlab("Minority Rate") + ylab("Count") +
-  labs(fill="Highest Minority Area") +
-  scale_x_continuous(labels=scales::percent)
+  xlab("") + ylab("") +
+  labs(fill="Type") +
+  scale_fill_manual(values=colours_set)
 gg
 ggsave(plot=gg,
-       file=paste0(output_dir, "/high_minority_hist.png"),
+       file=paste0(output_dir, "/character_by_hit_bar.png"),
        width=6, height=4)
 
-gg <- ggplot(census_base,
-             aes(x=hh_poverty/100, fill=poverty_tract)) +
-  geom_histogram() +
-  fte_theme() +
-  xlab("Poverty Rate") + ylab("Count") +
-  labs(fill="Highest Poverty Area") +
-  scale_x_continuous(labels=scales::percent)
-gg
-ggsave(plot=gg,
-       file=paste0(output_dir, "/high_poverty_hist.png"),
-       width=6, height=4)
 
-gg <- ggplot(census_base,
-             aes(x=delinquency_rate, fill=minority_tract)) +
-  geom_histogram() +
-  fte_theme() +
-  xlab("Delinquency Rate") + ylab("Count") +
-  labs(fill="Highest Minority Area") +
-  scale_x_continuous(labels=scales::percent)
-gg
-ggsave(plot=gg,
-       file=paste0(output_dir, "/high_delinquency_minority_hist.png"),
-       width=6, height=4)
+# Pie charts ####
+delinquency_pie <- account_info_merge %>%
+  mutate(delinquent=delinquent>0,
+         delinquent_linc=delinquent & financial_assist,
+         delinquent_not_linc=delinquent & !financial_assist,
+         not_delinquent_linc=!delinquent & financial_assist,
+         not_delinquent_not_linc=!delinquent & !financial_assist) %>%
+  group_by() %>%
+  summarise(total=n(),
+            delinquent_linc=sum(delinquent_linc, na.rm=TRUE),
+            delinquent_not_linc=sum(delinquent_not_linc, na.rm=TRUE),
+            not_delinquent_linc=sum(not_delinquent_linc, na.rm=TRUE),
+            not_delinquent_not_linc=sum(not_delinquent_not_linc, na.rm=TRUE)) %>%
+  ungroup() %>%
+  gather() %>%
+  mutate(Type=c("Total",
+                "Delinquent, LINC",
+                "Delinquent, Not LINC",
+                "Not Delinquent, LINC",
+                "Not Delinquent, Not LINC"),
+         Type=factor(Type,
+                     levels=c("Total",
+                              "Delinquent, LINC",
+                              "Delinquent, Not LINC",
+                              "Not Delinquent, LINC",
+                              "Not Delinquent, Not LINC")))
 
-gg <- ggplot(census_base,
-             aes(x=cutoff, fill=minority_tract)) +
-  geom_histogram() +
-  fte_theme() +
-  xlab("Cutoff Rate") + ylab("Count") +
-  labs(fill="Highest Minority Area") +
-  scale_x_continuous(labels=scales::percent)
-gg
-ggsave(plot=gg,
-       file=paste0(output_dir, "/high_cutoff_minority_hist.png"),
-       width=6, height=4)
+delinquency_pie_annotate <- delinquency_pie %>% 
+  mutate(csum=rev(cumsum(rev(value))), 
+         pos=value/2+lead(csum, 1),
+         pos=if_else(is.na(pos), value/2, pos),
+         value_percent=value/first(value))
 
-gg <- ggplot(census_base,
-             aes(x=delinquency_rate, fill=poverty_tract)) +
-  geom_histogram() +
-  fte_theme() +
-  xlab("Delinquency Rate") + ylab("Count") +
-  labs(fill="Highest Poverty Area") +
-  scale_x_continuous(labels=scales::percent)
+gg <- ggplot(delinquency_pie[2:5,],
+             aes(x="", y=value, fill=Type)) + 
+  geom_bar(stat="identity", width=1) +
+  geom_label_repel(data=delinquency_pie_annotate[2:5,],
+                   aes(y=pos,
+                       label=paste0(value, " (", round(value_percent*100, 1), "%)")),
+                   size=3, nudge_x=0.65, family="serif", show.legend=FALSE,
+                   colour=brewer.pal("Greys", n=9)[7],
+                   segment.colour=brewer.pal("Greys", n=9)[7],
+                   label.size=0.1) +
+  coord_polar("y", start=0) +
+  pie_theme() +
+  scale_fill_manual(values=colours_set) +
+  labs(fill="Delinquency Status") +
+  guides(fill=guide_legend(nrow=2, byrow=TRUE))
 gg
 ggsave(plot=gg,
-       file=paste0(output_dir, "/high_delinquency_poverty_hist.png"),
-       width=6, height=4)
-
-gg <- ggplot(census_base,
-             aes(x=cutoff, fill=poverty_tract)) +
-  geom_histogram() +
-  fte_theme() +
-  xlab("Cutoff Rate") + ylab("Count") +
-  labs(fill="Highest Poverty Area") +
-  scale_x_continuous(labels=scales::percent)
-gg
-ggsave(plot=gg,
-       file=paste0(output_dir, "/high_cutoff_poverty_hist.png"),
+       file=paste0(output_dir, "/delinquent_account_pie.png"),
        width=6, height=4)
