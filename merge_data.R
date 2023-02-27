@@ -68,7 +68,11 @@ account_info_merge <-
          delinquent_amount_2021=
            ifelse(delinquent_amount_2021==0, NA, delinquent_amount_2021),
          delinquent_amount_2022=
-           ifelse(delinquent_amount_2022==0, NA, delinquent_amount_2022))
+           ifelse(delinquent_amount_2022==0, NA, delinquent_amount_2022),
+         total_bill=total_bill_2019+
+           total_bill_2020+
+           total_bill_2021+
+           total_bill_2022)
 
 account_info_merge <-
   left_join(account_info_merge,
@@ -95,11 +99,11 @@ account_info_merge <-
             by="ACCOUNT_NO") %>%
   rowwise() %>% 
   mutate(discount_amount=sum(discount_amount_2020,
-           discount_amount_2021,
-           discount_amount_2022, na.rm=TRUE),
+                             discount_amount_2021,
+                             discount_amount_2022, na.rm=TRUE),
          crisis_voucher=sum(crisis_voucher_2020,
-           crisis_voucher_2021,
-           crisis_voucher_2022, na.rm=TRUE),
+                            crisis_voucher_2021,
+                            crisis_voucher_2022, na.rm=TRUE),
          discount_amount=ifelse(discount_amount==0, NA, discount_amount),
          discount_amount_2020=
            ifelse(discount_amount_2020==0, NA, discount_amount_2020),

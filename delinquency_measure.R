@@ -71,7 +71,8 @@ delinquency_status <- rbind(no_plan_bill, plan_bill) %>%
                             "delinquent",
                             "delinquency_rate",
                             "delinquent_amount",
-                            "delinquency_amount_rate"),
+                            "delinquency_amount_rate",
+                            "total_bill"),
               values_fill=0)
 
 

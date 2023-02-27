@@ -167,13 +167,17 @@ character_by_hit <-
                                             "\\% Below Poverty Line",
                                             "\\% Hispanic",
                                             "\\% Black")),
-         type=factor(type, levels=c("All", "High Delinquency", "High Cutoff")))
+         type=factor(type, levels=c("All", "High Delinquency", "High Cutoff")),
+         nrow=c(rep(nrow(census_base), 4), rep(20, 8)),
+         se=sd/sqrt(nrow),
+         lower_ci=mean-qt(1-0.05/2, nrow-1)*se,
+         upper_ci=mean+qt(1-0.05/2, nrow-1)*se)
 
 gg <- ggplot(character_by_hit,
              aes(x=Variable, y=mean, fill=type)) + 
   geom_bar(position=position_dodge(),
            stat="identity", alpha=0.7) +
-  geom_errorbar(aes(ymin=mean-sd, ymax=mean+sd),
+  geom_errorbar(aes(ymin=lower_ci, ymax=upper_ci),
                 position=position_dodge(0.9),
                 width=0.2, colour="orange", alpha=0.7, size=0.3) +
   coord_flip() +

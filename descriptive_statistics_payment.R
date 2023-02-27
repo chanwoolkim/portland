@@ -175,7 +175,7 @@ no_plan_bill <- bill_info_filtered %>%
          due_year=year(DUE_DT)) %>%
   select(ACCOUNT_NO, DUE_DT,
          due_year, delinquent, delinquent_amount,
-         PREV_BILL_AMT, SOURCE_CD,
+         PREV_BILL_AMT, AR_DUE_BEFORE_BILL, SOURCE_CD,
          PERIOD_FROM_DT, PERIOD_TO_DT)
 
 # Those on a payment plan
@@ -192,7 +192,7 @@ plan_bill <- bill_info_filtered %>%
          due_year=year(DUE_DT)) %>%
   select(ACCOUNT_NO, DUE_DT,
          due_year, delinquent, delinquent_amount,
-         PREV_BILL_AMT, SOURCE_CD,
+         PREV_BILL_AMT, AR_DUE_BEFORE_BILL, SOURCE_CD,
          PERIOD_FROM_DT, PERIOD_TO_DT)
 
 delinquency_status <- rbind(no_plan_bill, plan_bill) %>%
@@ -208,7 +208,8 @@ payment_arrange_time <- payment_arrange_amount %>%
   mutate(indx=c(0, cumsum(as.numeric(lead(payment_arrange_start)) >
                             cummax(as.numeric(payment_arrange_end)))[-n()])) %>%
   group_by(SS_ACCOUNT_NO, indx) %>%
-  summarise(payment_arrange_start=min(payment_arrange_start), 
+  summarise(terminated=any(STATUS_CD=="T"),
+            payment_arrange_start=min(payment_arrange_start), 
             payment_arrange_end=max(payment_arrange_end)) %>%
   select(-indx) %>%
   ungroup() %>%
@@ -235,7 +236,8 @@ payment_arrange_time_above_1 <- payment_arrange_time %>%
 delinquency_status_none <- delinquency_status %>%
   filter(!(ACCOUNT_NO %in% c(payment_arrange_time_count_above_1$SS_ACCOUNT_NO,
                              payment_arrange_time_count_1$SS_ACCOUNT_NO))) %>%
-  mutate(payment_arrange=FALSE)
+  mutate(payment_arrange=FALSE,
+         payment_arrange_status=NA)
 
 delinquency_status_sub <- delinquency_status %>%
   filter(ACCOUNT_NO %in% payment_arrange_time_count_above_1$SS_ACCOUNT_NO)
@@ -246,10 +248,11 @@ delinquency_status_rest <- delinquency_status %>%
               filter(SS_ACCOUNT_NO %in% payment_arrange_time_count_1$SS_ACCOUNT_NO),
             by=c("ACCOUNT_NO"="SS_ACCOUNT_NO")) %>%
   rowwise() %>%
-  mutate(payment_arrange=between(DUE_DT, payment_arrange_start, payment_arrange_end)) %>%
+  mutate(payment_arrange=between(DUE_DT, payment_arrange_start, payment_arrange_end),
+         payment_arrange_status=ifelse(payment_arrange, terminated, NA)) %>%
   ungroup() %>%
   mutate(payment_arrange=ifelse(is.na(payment_arrange), FALSE, payment_arrange)) %>%
-  select(-payment_arrange_start, -payment_arrange_end)
+  select(-payment_arrange_start, -payment_arrange_end, -terminated)
 
 delinquency_status_sub <- delinquency_status_sub %>%
   rowwise() %>%
@@ -257,7 +260,17 @@ delinquency_status_sub <- delinquency_status_sub %>%
                                list(subset(payment_arrange_time_above_1,
                                            SS_ACCOUNT_NO==ACCOUNT_NO)$payment_arrange_start,
                                     subset(payment_arrange_time_above_1,
-                                           SS_ACCOUNT_NO==ACCOUNT_NO)$payment_arrange_end))) %>%
+                                           SS_ACCOUNT_NO==ACCOUNT_NO)$payment_arrange_end)),
+         payment_arrange_status=
+           ifelse(payment_arrange,
+                  subset(payment_arrange_time_above_1,
+                         SS_ACCOUNT_NO==ACCOUNT_NO)$terminated[
+                           which(DUE_DT %between%
+                                   list(subset(payment_arrange_time_above_1,
+                                               SS_ACCOUNT_NO==ACCOUNT_NO)$payment_arrange_start,
+                                        subset(payment_arrange_time_above_1,
+                                               SS_ACCOUNT_NO==ACCOUNT_NO)$payment_arrange_end))],
+                  NA)) %>%
   ungroup()
 
 delinquency_status <- rbind(delinquency_status_sub,
@@ -434,10 +447,22 @@ delinquency_payment_arrange <- delinquency_status %>%
   ungroup() %>%
   mutate(delinquency_rate=delinquent/n_bill) %>%
   group_by(payment_arrange) %>%
-  summarise(delinquency_rate_mean=mean(delinquency_rate, na.rm=TRUE),
+  summarise(nrow=n(),
+            delinquency_rate_mean=mean(delinquency_rate, na.rm=TRUE),
             delinquency_rate_sd=sd(delinquency_rate, na.rm=TRUE),
             delinquent_amount_mean=mean(delinquent_amount, na.rm=TRUE),
-            delinquent_amount_sd=sd(delinquent_amount, na.rm=TRUE))
+            delinquent_amount_sd=sd(delinquent_amount, na.rm=TRUE)) %>%
+  ungroup() %>%
+  mutate(delinquency_rate_se=delinquency_rate_sd/sqrt(nrow),
+         delinquency_rate_lower_ci=
+           delinquency_rate_mean-qt(1-0.05/2, nrow-1)*delinquency_rate_se,
+         delinquency_rate_upper_ci=
+           delinquency_rate_mean+qt(1-0.05/2, nrow-1)*delinquency_rate_se,
+         delinquent_amount_se=delinquent_amount_sd/sqrt(nrow),
+         delinquent_amount_lower_ci=
+           delinquent_amount_mean-qt(1-0.05/2, nrow-1)*delinquent_amount_se,
+         delinquent_amount_upper_ci=
+           delinquent_amount_mean+qt(1-0.05/2, nrow-1)*delinquent_amount_se)
 
 delinquency_financial_assist <- delinquency_status %>%
   group_by(ACCOUNT_NO) %>%
@@ -449,10 +474,22 @@ delinquency_financial_assist <- delinquency_status %>%
   ungroup() %>%
   mutate(delinquency_rate=delinquent/n_bill) %>%
   group_by(financial_assist) %>%
-  summarise(delinquency_rate_mean=mean(delinquency_rate, na.rm=TRUE),
+  summarise(nrow=n(),
+            delinquency_rate_mean=mean(delinquency_rate, na.rm=TRUE),
             delinquency_rate_sd=sd(delinquency_rate, na.rm=TRUE),
             delinquent_amount_mean=mean(delinquent_amount, na.rm=TRUE),
-            delinquent_amount_sd=sd(delinquent_amount, na.rm=TRUE))
+            delinquent_amount_sd=sd(delinquent_amount, na.rm=TRUE)) %>%
+  ungroup() %>%
+  mutate(delinquency_rate_se=delinquency_rate_sd/sqrt(nrow),
+         delinquency_rate_lower_ci=
+           delinquency_rate_mean-qt(1-0.05/2, nrow-1)*delinquency_rate_se,
+         delinquency_rate_upper_ci=
+           delinquency_rate_mean+qt(1-0.05/2, nrow-1)*delinquency_rate_se,
+         delinquent_amount_se=delinquent_amount_sd/sqrt(nrow),
+         delinquent_amount_lower_ci=
+           delinquent_amount_mean-qt(1-0.05/2, nrow-1)*delinquent_amount_se,
+         delinquent_amount_upper_ci=
+           delinquent_amount_mean+qt(1-0.05/2, nrow-1)*delinquent_amount_se)
 
 delinquency_bar <-
   rbind(delinquency_financial_assist %>%
@@ -472,6 +509,10 @@ gg <- ggplot(delinquency_bar,
              aes(x=Variable, y=delinquency_rate_mean, fill=type)) + 
   geom_bar(position=position_dodge(),
            stat="identity", alpha=0.7) +
+  geom_errorbar(aes(ymin=delinquency_rate_lower_ci,
+                    ymax=delinquency_rate_upper_ci),
+                position=position_dodge(0.9),
+                width=0.2, colour="orange", alpha=0.7, size=0.3) +
   fte_theme() +
   xlab("") + ylab("") +
   labs(fill="Status") +
@@ -485,6 +526,10 @@ gg <- ggplot(delinquency_bar,
              aes(x=Variable, y=delinquent_amount_mean, fill=type)) + 
   geom_bar(position=position_dodge(),
            stat="identity", alpha=0.7) +
+  geom_errorbar(aes(ymin=delinquent_amount_lower_ci,
+                    ymax=delinquent_amount_upper_ci),
+                position=position_dodge(0.9),
+                width=0.2, colour="orange", alpha=0.7, size=0.3) +
   fte_theme() +
   xlab("") + ylab("") +
   labs(fill="Status") +
@@ -516,16 +561,14 @@ delinquency_financial_assist <- delinquency_status %>%
   ungroup() %>%
   mutate(delinquency_rate=delinquent/n_bill)
 
-model1 <- glm(delinquency_rate~payment_arrange,
-              family=binomial(link='logit'),
-              data=delinquency_payment_arrange)
+model1 <- lm(delinquency_rate~payment_arrange,
+             data=delinquency_payment_arrange)
 
 model2 <- lm(delinquent_amount~payment_arrange,
              data=delinquency_payment_arrange)
 
-model3 <- glm(delinquency_rate~financial_assist,
-              family=binomial(link='logit'),
-              data=delinquency_financial_assist)
+model3 <- lm(delinquency_rate~financial_assist,
+             data=delinquency_financial_assist)
 
 model4 <- lm(delinquent_amount~financial_assist,
              data=delinquency_financial_assist)
@@ -556,7 +599,6 @@ tab_data <- data.frame(coef_arrange=c(summary(model1)$coefficients[2,1], NA,
                                      summary(model4)$coefficients[1,4]))
 
 tab <- TR(c("", "Delinquency Rate", "Delinquent Amount"), cspan=c(1, 2, 2)) +
-  TR(c("", "(Logistic)", "(OLS)"), cspan=c(1, 2, 2)) +
   midrulep(list(c(2, 3), c(4, 5))) +
   TR(c("", "(1)", "(2)", "(3)", "(4)")) +
   midrule() +
@@ -570,3 +612,189 @@ tab <- TR(c("", "Delinquency Rate", "Delinquent Amount"), cspan=c(1, 2, 2)) +
 tab
 TS(tab, file="delinquency_reg", header=c("lcccc"),
    pretty_rules=TRUE, output_path=output_dir, stand_alone=FALSE)
+
+
+# Information on payment plans ####
+payment_arrange_info <-
+  left_join(payment_arrange_amount,
+            account_info_subset,
+            by=c("SS_ACCOUNT_NO"="ACCOUNT_NO")) %>%
+  filter(account) %>%
+  mutate(amount=ARRANGEMENT_AMT,
+         status=ifelse(STATUS_CD=="P", "Good", "Terminated"),
+         status=factor(status, levels=c("Good", "Terminated")))
+
+gg <- ggplot(payment_arrange_info %>%
+               group_by() %>%
+               mutate(q95=quantile(amount, 0.95)) %>%
+               filter(amount<=q95),
+             aes(x=amount, fill=status)) + 
+  geom_histogram() +
+  fte_theme() +
+  xlab("Payment Arrangement Amount") + ylab("Count") +
+  labs(fill="Status") +
+  scale_fill_manual(values=colours_set)
+gg
+ggsave(plot=gg,
+       file=paste0(output_dir, "/payment_arrange_amount_hist.png"),
+       width=6, height=4)
+
+gg <- ggplot(payment_arrange_info %>%
+               group_by() %>%
+               mutate(q95=quantile(amount, 0.95),
+                      q999=quantile(amount, 0.999)) %>%
+               filter(amount>q95, amount<=q999),
+             aes(x=amount, fill=status)) + 
+  geom_histogram() +
+  fte_theme() +
+  xlab("Payment Arrangement Amount") + ylab("Count") +
+  labs(fill="Status") +
+  scale_fill_manual(values=colours_set)
+gg
+ggsave(plot=gg,
+       file=paste0(output_dir, "/payment_arrange_amount_large_hist.png"),
+       width=6, height=4)
+
+payment_arrange_bill_info <-
+  payment_arrangement_info %>%
+  filter(PAY_ARRANGEMENT_REF %in% payment_arrange_info$PAY_ARRANGEMENT_REF) %>%
+  left_join(payment_arrange_info %>%
+              select(PAY_ARRANGEMENT_REF,
+                     STATUS_CD),
+            by="PAY_ARRANGEMENT_REF") %>%
+  group_by(PAY_ARRANGEMENT_REF) %>%
+  arrange(mdy(DUE_DT)) %>%
+  mutate(prev_date=lag(DUE_DT)) %>%
+  ungroup() %>%
+  mutate(duration=round(interval(mdy(prev_date), mdy(DUE_DT))/months(1)),
+         duration=ifelse(is.na(duration) | duration==0, 1, duration),
+         amount=AMOUNT_DUE/duration,
+         status=ifelse(STATUS_CD=="P", "Good", "Terminated"),
+         status=factor(status, levels=c("Good", "Terminated")))
+
+gg <- ggplot(payment_arrange_bill_info %>%
+               group_by() %>%
+               mutate(q95=quantile(amount, 0.95)) %>%
+               filter(amount<=q95),
+             aes(x=amount, fill=status)) + 
+  geom_histogram() +
+  fte_theme() +
+  xlab("Payment Arrangement Bill Amount") + ylab("Count") +
+  labs(fill="Status") +
+  scale_fill_manual(values=colours_set)
+gg
+ggsave(plot=gg,
+       file=paste0(output_dir, "/payment_arrange_bill_amount_hist.png"),
+       width=6, height=4)
+
+gg <- ggplot(payment_arrange_bill_info %>%
+               group_by() %>%
+               mutate(q95=quantile(amount, 0.95),
+                      q999=quantile(amount, 0.999)) %>%
+               filter(amount>q95, amount<=q999),
+             aes(x=amount, fill=status)) + 
+  geom_histogram() +
+  fte_theme() +
+  xlab("Payment Arrangement Bill Amount") + ylab("Count") +
+  labs(fill="Status") +
+  scale_fill_manual(values=colours_set)
+gg
+ggsave(plot=gg,
+       file=paste0(output_dir, "/payment_arrange_bill_amount_large_hist.png"),
+       width=6, height=4)
+
+delinquency_payment_arrange <- delinquency_status %>%
+  group_by(ACCOUNT_NO) %>%
+  filter(any(payment_arrange)) %>%
+  ungroup() %>%
+  mutate(amount_owed=ifelse(is.na(AR_DUE_BEFORE_BILL), 0, AR_DUE_BEFORE_BILL))
+
+delinquency_payment_arrange <- delinquency_payment_arrange %>%
+  arrange(ACCOUNT_NO, DUE_DT) %>%
+  group_by(ACCOUNT_NO) %>%
+  mutate(row_number=row_number(),
+         change=payment_arrange!=lag(payment_arrange)) %>%
+  ungroup() %>%
+  mutate(change=ifelse(row_number==1, TRUE, change),
+         first_arrange=payment_arrange & change)
+
+delinquency_payment_arrange_initial <- delinquency_payment_arrange %>%
+  filter(first_arrange) %>%
+  select(ACCOUNT_NO, DUE_DT, AR_DUE_BEFORE_BILL, payment_arrange_status) %>%
+  mutate(after_6=DUE_DT+months(6),
+         after_12=DUE_DT+months(12))
+
+delinquency_payment_arrange_initial <- delinquency_payment_arrange_initial %>%
+  mutate(SS_ACCOUNT_NO=ACCOUNT_NO) %>%
+  select(-ACCOUNT_NO) %>%
+  rowwise() %>%
+  mutate(after_6_amount=
+           subset(delinquency_payment_arrange,
+                  DUE_DT>=after_6 & ACCOUNT_NO==SS_ACCOUNT_NO)$AR_DUE_BEFORE_BILL[1],
+         after_12_amount=
+           subset(delinquency_payment_arrange,
+                  DUE_DT>=after_12 & ACCOUNT_NO==SS_ACCOUNT_NO)$AR_DUE_BEFORE_BILL[1])
+
+delinquency_payment_arrange_change <- delinquency_payment_arrange_initial %>%
+  filter(!(is.na(after_6_amount) | is.na(after_12_amount))) %>%
+  mutate(more_6=after_6_amount>AR_DUE_BEFORE_BILL,
+         more_12=after_12_amount>AR_DUE_BEFORE_BILL,
+         change_6=(after_6_amount-AR_DUE_BEFORE_BILL)/AR_DUE_BEFORE_BILL,
+         change_12=(after_12_amount-AR_DUE_BEFORE_BILL)/AR_DUE_BEFORE_BILL)
+
+delinquency_payment_arrange_change_pie <- delinquency_payment_arrange_change %>%
+  group_by() %>%
+  summarise(count=n(),
+            terminated=sum(payment_arrange_status, na.rm=TRUE),
+            more_6=sum(more_6[!payment_arrange_status], na.rm=TRUE),
+            more_12=sum(more_12[!payment_arrange_status], na.rm=TRUE))
+
+pie_6 <- data.frame(type=c("Terminated", "Owed More", "Owed Equal or Less"),
+                    value=c(delinquency_payment_arrange_change_pie$terminated,
+                            delinquency_payment_arrange_change_pie$more_6,
+                            delinquency_payment_arrange_change_pie$count-
+                              delinquency_payment_arrange_change_pie$terminated-
+                              delinquency_payment_arrange_change_pie$more_6))
+
+gg <- ggplot(pie_6,
+             aes(x="", y=value, fill=type)) + 
+  geom_bar(stat="identity", width=1) +
+  geom_text(aes(label=paste0(value,
+                             " (",
+                             round(value/sum(value)*100,2),
+                             "%)")),
+            position=position_stack(vjust=0.5),
+            color="white", size=4, family="serif") +
+  coord_polar("y", start=0) +
+  pie_theme() +
+  labs(fill="Payment Arrangement - After 6 Months") +
+  scale_fill_manual(values=colours_set)
+gg
+ggsave(plot=gg,
+       file=paste0(output_dir, "/after_6_months_pie.png"),
+       width=6, height=4)
+
+pie_12 <- data.frame(type=c("Terminated", "Owed More", "Owed Equal or Less"),
+                     value=c(delinquency_payment_arrange_change_pie$terminated,
+                             delinquency_payment_arrange_change_pie$more_12,
+                             delinquency_payment_arrange_change_pie$count-
+                               delinquency_payment_arrange_change_pie$terminated-
+                               delinquency_payment_arrange_change_pie$more_12))
+
+gg <- ggplot(pie_12,
+             aes(x="", y=value, fill=type)) + 
+  geom_bar(stat="identity", width=1) +
+  geom_text(aes(label=paste0(value,
+                             " (",
+                             round(value/sum(value)*100,2),
+                             "%)")),
+            position=position_stack(vjust=0.5),
+            color="white", size=4, family="serif") +
+  coord_polar("y", start=0) +
+  pie_theme() +
+  labs(fill="Payment Arrangement - After 12 Months") +
+  scale_fill_manual(values=colours_set)
+gg
+ggsave(plot=gg,
+       file=paste0(output_dir, "/after_12_months_pie.png"),
+       width=6, height=4)

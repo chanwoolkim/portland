@@ -71,6 +71,66 @@ ggsave(plot=gg,
        file=paste0(output_dir, "/delinquent_amount_pie.png"),
        width=6, height=4)
 
+delinquency_amount_type <- account_info_merge %>%
+  group_by(ACCOUNT_CLASS_DFLT) %>%
+  summarise(delinquentamount_all=sum(delinquent_amount, na.rm=TRUE),
+            delinquentamount_2019=sum(delinquent_amount_2019, na.rm=TRUE),
+            delinquentamount_2020=sum(delinquent_amount_2020, na.rm=TRUE),
+            delinquentamount_2021=sum(delinquent_amount_2021, na.rm=TRUE),
+            delinquentamount_2022=sum(delinquent_amount_2022, na.rm=TRUE),
+            totalbill_all=sum(total_bill, na.rm=TRUE),
+            totalbill_2019=sum(total_bill_2019, na.rm=TRUE),
+            totalbill_2020=sum(total_bill_2020, na.rm=TRUE),
+            totalbill_2021=sum(total_bill_2021, na.rm=TRUE),
+            totalbill_2022=sum(total_bill_2022, na.rm=TRUE)) %>%
+  ungroup() %>%
+  mutate(delinquentpercent_all=delinquentamount_all/totalbill_all,
+         delinquentpercent_2019=delinquentamount_2019/totalbill_2019,
+         delinquentpercent_2020=delinquentamount_2020/totalbill_2020,
+         delinquentpercent_2021=delinquentamount_2021/totalbill_2021,
+         delinquentpercent_2022=delinquentamount_2022/totalbill_2022) %>%
+  ungroup() %>%
+  pivot_longer(cols=c(starts_with("delinquentamount"),
+                      starts_with("totalbill"),
+                      starts_with("delinquentpercent")),
+               names_to=c(".value", "year"),
+               names_sep="_") %>%
+  pivot_wider(id_cols=year, 
+              names_from=ACCOUNT_CLASS_DFLT, 
+              values_from=c("delinquentamount",
+                            "totalbill",
+                            "delinquentpercent"),
+              values_fill=0) %>%
+  mutate(delinquentamount_RESSF=
+           paste0("\\$", round(delinquentamount_RESSF/1000000, 2), " Million"),
+         delinquentamount_RESMF=
+           paste0("\\$", round(delinquentamount_RESMF/1000000, 2), " Million"),
+         totalbill_RESSF=paste0("\\$", round(totalbill_RESSF/1000000, 2), " Million"),
+         totalbill_RESMF=paste0("\\$", round(totalbill_RESMF/1000000, 2), " Million"),
+         delinquentpercent_RESSF=paste0(round(delinquentpercent_RESSF*100, 2), "\\%"),
+         delinquentpercent_RESMF=paste0(round(delinquentpercent_RESMF*100, 2), "\\%"),
+         year=ifelse(year=="all", "2019-2022", year)) %>%
+  select(year,
+         delinquentamount_RESSF, totalbill_RESSF, delinquentpercent_RESSF,
+         delinquentamount_RESMF, totalbill_RESMF, delinquentpercent_RESMF)
+
+tab_row <- function(row) {
+  out <- TR(delinquency_amount_type[row, 1:7] %>% as.character())
+  return(out)
+}
+
+tab <- TR(c("Year", "Residential Single Family", "Residential Multi Family"),
+          cspan=c(1, 3, 3)) +
+  midrulep(list(c(2, 4), c(5, 7))) +
+  TR(c("",
+       "Delinquent Amount", "Total Bill", "Percent",
+       "Delinquent Amount", "Total Bill", "Percent")) +
+  midrule() +
+  tab_row(1) + tab_row(2) + tab_row(3) + tab_row(4) + tab_row(5)
+
+TS(tab, file="total_delinquent", header=c("c|ccc|ccc"),
+   pretty_rules=TRUE, output_path=output_dir, stand_alone=FALSE)
+
 
 # Calculate descriptive statistics ####
 # List of variables to work with
@@ -700,42 +760,62 @@ census_base <- left_join(census_payment_base,
                          portland_demographics_tract_wide,
                          by=c("census_tract"="tract"))
 
-model1 <- glm(delinquency_rate~black+hispanic+food_stamp+hh_poverty,
+model1 <- glm(delinquency_rate~black+food_stamp+hh_poverty+hispanic,
               weights=total_hh,
               family=binomial(link='logit'),
               data=census_base)
 
-model2 <- glm(cutoff~black+hispanic+food_stamp+hh_poverty,
+margin_model1 <- margins(model1,
+                         variables=c("black", "food_stamp", "hh_poverty", "hispanic"))
+
+model2 <- glm(cutoff~black+food_stamp+hh_poverty+hispanic,
               weights=total_hh,
               family=binomial(link='logit'),
               data=census_base)
+
+margin_model2 <- margins(model2,
+                         variables=c("black", "food_stamp", "hh_poverty", "hispanic"))
 
 tab_data <- data.frame(coef_1=summary(model1)$coefficients[,1],
+                       coef_margin_1=c(NA,
+                                       summary(margin_model1)$AME %>% as.numeric()),
                        coef_2=summary(model2)$coefficients[,1],
+                       coef_margin_2=c(NA,
+                                       summary(margin_model2)$AME %>% as.numeric()),              
                        se_1=summary(model1)$coefficients[,2],
+                       se_margin_1=c(NA,
+                                     summary(margin_model1)$SE %>% as.numeric()),
                        se_2=summary(model2)$coefficients[,2],
+                       se_margin_2=c(NA,
+                                     summary(margin_model2)$SE %>% as.numeric()),   
                        p_1=summary(model1)$coefficients[,4],
-                       p_2=summary(model2)$coefficients[,4])
+                       p_margin_1=c(NA,
+                                    summary(margin_model1)$p %>% as.numeric()),
+                       p_2=summary(model2)$coefficients[,4],
+                       p_margin_2=c(NA,
+                                    summary(margin_model2)$p %>% as.numeric()))
 
-tab <- TR(c("", "Delinquency Rate", "Cutoff Rate")) +
-  TR(c("", "(1)", "(2)")) +
+tab <- TR(c("", "Delinquency Rate", "Cutoff Rate"), cspan=c(1, 2, 2)) +
+  midrulep(list(c(2, 3), c(4, 5))) +
+  TR(c("", "Coefficients", "AME", "Coefficients", "AME")) +
+  TR(c("", "(1)", "(2)", "(3)", "(4)")) +
   midrule() +
-  TR("Black") %:% TR(tab_data[2,1:2] %>% as.numeric(), dec=3,
-                     pvalues=tab_data[2,5:6] %>% as.numeric()) +
-  TR("") %:% TR(tab_data[2,3:4] %>% as.numeric(), dec=3, se=T) +
-  TR("Hispanic") %:% TR(tab_data[3,1:2] %>% as.numeric(), dec=3,
-                        pvalues=tab_data[3,5:6] %>% as.numeric()) +
-  TR("") %:% TR(tab_data[3,3:4] %>% as.numeric(), dec=3, se=T) +
-  TR("Food Stamp") %:% TR(tab_data[4,1:2] %>% as.numeric(), dec=3,
-                          pvalues=tab_data[4,5:6] %>% as.numeric()) +
-  TR("") %:% TR(tab_data[4,3:4] %>% as.numeric(), dec=3, se=T) +
-  TR("Poverty") %:% TR(tab_data[5,1:2] %>% as.numeric(), dec=3, 
-                       pvalues=tab_data[5,5:6] %>% as.numeric()) +
-  TR("") %:% TR(tab_data[5,3:4] %>% as.numeric(), dec=3, se=T) +
-  TR("(Intercept)") %:% TR(tab_data[1,1:2] %>% as.numeric(), dec=3, 
-                           pvalues=tab_data[1,5:6] %>% as.numeric()) +
-  TR("") %:% TR(tab_data[1,3:4] %>% as.numeric(), dec=3, se=T)
+  TR("Black") %:% TR(tab_data[2,1:4] %>% as.numeric(), dec=c(3,5,3,5),
+                     pvalues=tab_data[2,9:12] %>% as.numeric()) +
+  TR("") %:% TR(tab_data[2,5:8] %>% as.numeric(), dec=c(3,5,3,5), se=T) +
+  TR("Hispanic") %:% TR(tab_data[5,1:4] %>% as.numeric(), dec=c(3,5,3,5),
+                        pvalues=tab_data[5,9:12] %>% as.numeric()) +
+  TR("") %:% TR(tab_data[5,5:8] %>% as.numeric(), dec=c(3,5,3,5), se=T) +
+  TR("Food Stamp") %:% TR(tab_data[3,1:4] %>% as.numeric(), dec=c(3,5,3,5),
+                          pvalues=tab_data[3,9:12] %>% as.numeric()) +
+  TR("") %:% TR(tab_data[3,5:8] %>% as.numeric(), dec=c(3,5,3,5), se=T) +
+  TR("Poverty") %:% TR(tab_data[4,1:4] %>% as.numeric(), dec=c(3,5,3,5), 
+                       pvalues=tab_data[4,9:12] %>% as.numeric()) +
+  TR("") %:% TR(tab_data[4,5:8] %>% as.numeric(), dec=c(3,5,3,5), se=T) +
+  TR("(Intercept)") %:% TR(tab_data[1,1:4] %>% as.numeric(), dec=c(3,5,3,5), 
+                           pvalues=tab_data[1,9:12] %>% as.numeric()) +
+  TR("") %:% TR(tab_data[1,5:8] %>% as.numeric(), dec=c(3,5,3,5), se=T)
 
 tab
-TS(tab, file="character_reg", header=c("lcc"),
+TS(tab, file="character_reg", header=c("lcccc"),
    pretty_rules=TRUE, output_path=output_dir, stand_alone=FALSE)
