@@ -36,7 +36,7 @@ payment_arrange_amount <- payment_arrangement %>%
            payment_arrange_end_year>=2019)
 
 # Only consider single family
-account_info_subset <- account_info %>%
+account_info_subset <- account_info_merge %>%
   filter(ACCOUNT_CLASS_DFLT %in% c("RESSF", "ASST")) %>%
   select(ACCOUNT_NO) %>%
   mutate(account=TRUE)
@@ -90,7 +90,7 @@ gg <- ggplot(payment_arrange_pie,
   geom_label_repel(data=payment_arrange_pie_annotate,
                    aes(y=pos,
                        label=paste0(count, " (", round(count_percent*100, 1), "%)")),
-                   size=3, nudge_x=0.65, family="serif", show.legend=FALSE,
+                   size=3, nudge_x=0.1, family="serif", show.legend=FALSE,
                    colour=brewer.pal("Greys", n=9)[7],
                    segment.colour=brewer.pal("Greys", n=9)[7],
                    label.size=0.1) +

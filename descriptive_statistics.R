@@ -48,6 +48,9 @@ TS(tab, file="account_all", header=c("l|c|c"),
 
 # Total delinquent amount decomposition
 delinquency_amount_type <- account_info_merge %>%
+  mutate(ACCOUNT_CLASS_DFLT=ifelse(ACCOUNT_CLASS_DFLT=="ASST",
+                                   "RESSF",
+                                   ACCOUNT_CLASS_DFLT)) %>%
   group_by(ACCOUNT_CLASS_DFLT) %>%
   summarise(delinquent_amount=sum(delinquent_amount, na.rm=TRUE)) %>%
   mutate(class_description=case_when(
@@ -72,6 +75,9 @@ ggsave(plot=gg,
        width=6, height=4)
 
 delinquency_amount_type <- account_info_merge %>%
+  mutate(ACCOUNT_CLASS_DFLT=ifelse(ACCOUNT_CLASS_DFLT=="ASST",
+                                   "RESSF",
+                                   ACCOUNT_CLASS_DFLT)) %>%
   group_by(ACCOUNT_CLASS_DFLT) %>%
   summarise(delinquentamount_all=sum(delinquent_amount, na.rm=TRUE),
             delinquentamount_2019=sum(delinquent_amount_2019, na.rm=TRUE),

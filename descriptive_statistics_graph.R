@@ -230,7 +230,7 @@ gg <- ggplot(delinquency_pie[2:5,],
   geom_label_repel(data=delinquency_pie_annotate[2:5,],
                    aes(y=pos,
                        label=paste0(value, " (", round(value_percent*100, 1), "%)")),
-                   size=3, nudge_x=0.65, family="serif", show.legend=FALSE,
+                   size=3, nudge_x=0.1, family="serif", show.legend=FALSE,
                    colour=brewer.pal("Greys", n=9)[7],
                    segment.colour=brewer.pal("Greys", n=9)[7],
                    label.size=0.1) +

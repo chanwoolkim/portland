@@ -13,6 +13,7 @@ tracts <- read.csv(file=paste0(working_data_dir, "/portland_geoid.csv"),
 
 # Choose valid accounts
 account_info_filtered <- account_info %>%
+  mutate(ACCOUNT_CLASS_DFLT=trimws(ACCOUNT_CLASS_DFLT)) %>%
   filter(BILLING_STAT=="REGLR",
          ACCOUNT_CLASS_DFLT %in% c("RESSF", "RESMF", "ASST"))
 
