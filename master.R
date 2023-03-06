@@ -6,6 +6,7 @@ start_time <- Sys.time()
 
 library(acs)
 library(data.table)
+library(fixest)
 library(ggplot2)
 library(ggrepel)
 library(glue)
@@ -178,6 +179,8 @@ source(paste0(code_dir, "/descriptive_statistics.R"))
 source(paste0(code_dir, "/descriptive_statistics_graph.R"))
 source(paste0(code_dir, "/descriptive_statistics_resmf.R"))
 source(paste0(code_dir, "/descriptive_statistics_payment.R"))
+source(paste0(code_dir, "/descriptive_statistics_linc.R"))
+source(paste0(code_dir, "/descriptive_statistics_did.R"))
 
 end_time <- Sys.time()
 end_time-start_time

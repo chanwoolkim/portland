@@ -58,7 +58,7 @@ gg <- ggplot(acs_tract_map_base,
              aes(fill=high_cutoff)) + 
   geom_sf() +
   map_theme() +
-  labs(fill="Highest Cutoff Area") +
+  labs(fill="Highest Shutoff Area") +
   scale_fill_manual(values=colours_set)
 gg
 ggsave(plot=gg,
@@ -136,8 +136,8 @@ for (var in cutoff_var_list) {
                aes(x=get(var), fill=cutoff_tract)) + 
     geom_histogram() +
     fte_theme() +
-    xlab("Cutoff Rate") + ylab("Count") +
-    labs(fill="Highest Cutoff Area") +
+    xlab("Shutoff Rate") + ylab("Count") +
+    labs(fill="Highest Shutoff Area") +
     scale_x_continuous(labels=scales::percent) +
     scale_fill_manual(values=colours_set)
   gg
@@ -162,16 +162,18 @@ screen_census <- function(df, type) {
 character_by_hit <-
   rbind(screen_census(census_character, "All"),
         screen_census(census_character_high_delinquency, "High Delinquency"),
-        screen_census(census_character_high_cutoff, "High Cutoff")) %>%
-  mutate(Variable=factor(Variable, levels=c("\\% Food Stamp",
-                                            "\\% Below Poverty Line",
-                                            "\\% Hispanic",
-                                            "\\% Black")),
-         type=factor(type, levels=c("All", "High Delinquency", "High Cutoff")),
+        screen_census(census_character_high_cutoff, "High Shutoff")) %>%
+  mutate(Variable=gsub("\\\\", "", Variable),
+         Variable=factor(Variable, levels=c("% Food Stamp",
+                                            "% Below Poverty Line",
+                                            "% Hispanic",
+                                            "% Black")),
+         type=factor(type, levels=c("All", "High Delinquency", "High Shutoff")),
          nrow=c(rep(nrow(census_base), 4), rep(20, 8)),
          se=sd/sqrt(nrow),
-         lower_ci=mean-qt(1-0.05/2, nrow-1)*se,
-         upper_ci=mean+qt(1-0.05/2, nrow-1)*se)
+         lower_ci=(mean-qt(1-0.05/2, nrow-1)*se)/100,
+         upper_ci=(mean+qt(1-0.05/2, nrow-1)*se)/100,
+         mean=mean/100)
 
 gg <- ggplot(character_by_hit,
              aes(x=Variable, y=mean, fill=type)) + 
@@ -184,6 +186,7 @@ gg <- ggplot(character_by_hit,
   fte_theme() +
   xlab("") + ylab("") +
   labs(fill="Type") +
+  scale_y_continuous(labels=scales::percent) +
   scale_fill_manual(values=colours_set)
 gg
 ggsave(plot=gg,
@@ -207,16 +210,16 @@ delinquency_pie <- account_info_merge %>%
   ungroup() %>%
   gather() %>%
   mutate(Type=c("Total",
-                "Delinquent, LINC",
-                "Delinquent, Not LINC",
-                "Not Delinquent, LINC",
-                "Not Delinquent, Not LINC"),
+                "Delinquent,\nReceived Financial Assistance",
+                "Delinquent,\nNo Financial Assistance",
+                "Not Delinquent,\nReceived Financial Assistance",
+                "Not Delinquent,\nNo Financial Assistance"),
          Type=factor(Type,
                      levels=c("Total",
-                              "Delinquent, LINC",
-                              "Delinquent, Not LINC",
-                              "Not Delinquent, LINC",
-                              "Not Delinquent, Not LINC")))
+                              "Delinquent,\nReceived Financial Assistance",
+                              "Delinquent,\nNo Financial Assistance",
+                              "Not Delinquent,\nReceived Financial Assistance",
+                              "Not Delinquent,\nNo Financial Assistance")))
 
 delinquency_pie_annotate <- delinquency_pie %>% 
   mutate(csum=rev(cumsum(rev(value))), 

@@ -68,15 +68,15 @@ payment_arrange_pie <- payment_arrange_account %>%
   group_by(STATUS_CD, financial_assist) %>%
   summarise(count=n()) %>%
   ungroup() %>%
-  mutate(Type=c("Arrangement Not Terminated, Not LINC",
-                "Arrangement Not Terminated, LINC",
-                "Arrangement Terminated, Not LINC",
-                "Arrangement Terminated, LINC"),
+  mutate(Type=c("Arrangement Not Terminated,\nNo Financial Assistance",
+                "Arrangement Not Terminated,\nReceived Financial Assistance",
+                "Arrangement Terminated,\nNo Financial Assistance",
+                "Arrangement Terminated,\nReceived Financial Assistance"),
          Type=factor(Type,
-                     levels=c("Arrangement Not Terminated, Not LINC",
-                              "Arrangement Not Terminated, LINC",
-                              "Arrangement Terminated, Not LINC",
-                              "Arrangement Terminated, LINC")))
+                     levels=c("Arrangement Not Terminated,\nNo Financial Assistance",
+                              "Arrangement Not Terminated,\nReceived Financial Assistance",
+                              "Arrangement Terminated,\nNo Financial Assistance",
+                              "Arrangement Terminated,\nReceived Financial Assistance")))
 
 payment_arrange_pie_annotate <- payment_arrange_pie %>% 
   mutate(csum=rev(cumsum(rev(count))), 
@@ -112,15 +112,24 @@ account_info_merge <- account_info_merge %>%
 
 account_count <- account_info_merge %>%
   mutate(crisis_voucher=crisis_voucher>0,
-         crisis_voucher=ifelse(is.na(crisis_voucher), FALSE, crisis_voucher)) %>%
+         crisis_voucher=ifelse(is.na(crisis_voucher), FALSE, crisis_voucher),
+         delinquent=delinquent>0) %>%
   group_by(payment_arrange, financial_assist, crisis_voucher) %>%
-  summarise(count=n()) %>%
+  summarise(count=n(),
+            delinquent=sum(delinquent, na.rm=TRUE),
+            cutoff=sum(cutoff, na.rm=TRUE)) %>%
   ungroup() %>%
   arrange(payment_arrange, financial_assist, crisis_voucher) %>%
   mutate(proportion=count/sum(count)*100,
          payment_arrange=ifelse(payment_arrange, "$\\checkmark$", ""),
          financial_assist=ifelse(financial_assist, "$\\checkmark$", ""),
-         crisis_voucher=ifelse(crisis_voucher, "$\\checkmark$", ""))
+         crisis_voucher=ifelse(crisis_voucher, "$\\checkmark$", ""),
+         delinquent_proportion=delinquent/count*100,
+         cutoff_proportion=cutoff/count*100) %>%
+  select(payment_arrange, financial_assist, crisis_voucher,
+         count, proportion,
+         delinquent, delinquent_proportion,
+         cutoff, cutoff_proportion)
 
 tab_row <- function(row) {
   add_percent <- function(row_tab) {
@@ -142,6 +151,34 @@ tab <- TR(c("Payment Arrangement", "Financial Assistance", "Crisis Voucher",
 
 tab <- fix_0(tab)
 TS(tab, file="assistance_count", header=c("c|c|c|c|c"),
+   pretty_rules=TRUE, output_path=output_dir, stand_alone=FALSE)
+
+tab_row <- function(row) {
+  add_percent <- function(row_tab) {
+    row_tab$row_list[[1]][5] <-
+      str_c(row_tab$row_list[[1]][5], "\\%")
+    row_tab$row_list[[1]][7] <-
+      str_c(row_tab$row_list[[1]][7], "\\%")
+    row_tab$row_list[[1]][9] <-
+      str_c(row_tab$row_list[[1]][9], "\\%")
+    return(row_tab)
+  }
+  out <- TR(account_count[row, 1:3] %>% as.character()) %:%
+    TR(account_count[row, 4:9] %>% as.numeric(), dec=c(5, 2, 5, 2, 5, 2))
+  out <- add_percent(out)
+  return(out)
+}
+
+tab <- TR(c("Payment", "Financial", "Crisis",
+            "", "", "Delinquent", "Delinquent", "Shutoff", "Shutoff")) +
+  TR(c("Arrangement", "Assistance", "Voucher",
+       "Count", "Proportion", "Count", "Proportion", "Count", "Proportion")) +
+  midrule() +
+  tab_row(1) + tab_row(2) + tab_row(3) +
+  tab_row(4) + tab_row(5) + tab_row(6)
+
+tab <- fix_0(tab)
+TS(tab, file="assistance_count_expand", header=c("c|c|c|c|c|c|c|c|c"),
    pretty_rules=TRUE, output_path=output_dir, stand_alone=FALSE)
 
 # Average payment arrangement amount
@@ -502,8 +539,8 @@ delinquency_bar <-
           select(type, Variable, starts_with("delin"))) %>%
   mutate(Variable=factor(Variable, levels=c("Financial Assistance",
                                             "Payment Arrangement")),
-         type=ifelse(type, "Enroled", "Not Enroled"),
-         type=factor(as.character(type), levels=c("Enroled", "Not Enroled")))
+         type=ifelse(type, "Enrolled", "Not Enrolled"),
+         type=factor(as.character(type), levels=c("Enrolled", "Not Enrolled")))
 
 gg <- ggplot(delinquency_bar,
              aes(x=Variable, y=delinquency_rate_mean, fill=type)) + 
