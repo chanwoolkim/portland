@@ -466,6 +466,10 @@ delinquency_status <- rbind(delinquency_status_sub,
                             delinquency_status_rest,
                             delinquency_status_none)
 
+# Save the dataset
+save(delinquency_status,
+     file=paste0(working_data_dir, "/delinquency_status.RData"))
+
 
 # Bills of someone who initiated a payment plan ####
 delinquency_status <- delinquency_status %>%
