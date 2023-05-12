@@ -1,8 +1,4 @@
-# Master file
-
-# Preliminary ####
-rm(list=ls())
-start_time <- Sys.time()
+# preliminary.R
 
 library(acs)
 library(data.table)
@@ -22,14 +18,6 @@ library(tidycensus)
 library(tidygeocoder)
 library(tidyverse)
 library(textables)
-
-wd <- paste0(dirname(rstudioapi::getSourceEditorContext()$path), "/..")
-setwd(wd)
-wd <- getwd()
-code_dir <- paste0(wd, "/code")
-data_dir <- paste0(wd, "/SERVUS")
-working_data_dir <- paste0(wd, "/working_data")
-output_dir <- paste0(code_dir, "/output")
 
 colours_set <- brewer.pal("Set2", n=8)
 
@@ -163,24 +151,3 @@ fix_0 <- function(tab) {
   }
   return(tab)
 }
-
-
-# Run files ####
-# Data preparation
-source(paste0(code_dir, "/geocoding_api.R"))
-source(paste0(code_dir, "/tidy_census_api.R"))
-source(paste0(code_dir, "/setup_portland.R"))
-source(paste0(code_dir, "/delinquency_measure.R"))
-source(paste0(code_dir, "/financial_assistance_clean.R"))
-source(paste0(code_dir, "/merge_data.R"))
-
-# Analysis
-source(paste0(code_dir, "/descriptive_statistics.R"))
-source(paste0(code_dir, "/descriptive_statistics_graph.R"))
-source(paste0(code_dir, "/descriptive_statistics_resmf.R"))
-source(paste0(code_dir, "/descriptive_statistics_payment.R"))
-source(paste0(code_dir, "/descriptive_statistics_linc.R"))
-source(paste0(code_dir, "/descriptive_statistics_did.R"))
-
-end_time <- Sys.time()
-end_time-start_time

@@ -17,23 +17,8 @@ financial_assistance_clean.R
 merge_data.R
 - Merge all data, saves account_info_analysis.RData
 
-working_data/analysis_info.Rdata contains the raw data
-working_data/account_info_analysis.RData contains the data primarily used in the analysis
+data/analysis/analysis_info.Rdata contains the raw data
+data/analysis/account_info_analysis.RData contains the data primarily used in the analysis
 - Note: this file is in the account level
 - Note: this file does not restrict to residential single family: filter(ACCOUNT_CLASS_DFLT %in% c("RESSF", "ASST")) to restrict to single family
-
-
-ANALYSIS
-descriptive_statistics.R
-- Create tables for basic descriptive statistics and overview of the data (account types)
-descriptive_statistics_graph.R
-- Create graphs for basic descriptive statistics (pie charts)
-descriptive_statistics_resmf.R
-- Create tables for basic descriptive statistics for residential multi-family units only
-descriptive_statistics_payment.R
-- Create tables/graphs for the payment arrangement programme
-- Note: this file also loads financial_assistance_info.RData
-descriptive_statistics_linc.R
-- Create tables/graphs for the financial assistance programme
-descriptive_statistics_did.R
-- Create tables for the difference-in-differences exercise
+data/analysis/delinquency_status/RData contains the panel data on bills and payments

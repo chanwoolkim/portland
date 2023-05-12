@@ -1,5 +1,18 @@
-# Additional analysis on payment arrangement
+#=========================================================================#
+# Descriptive_statistics_payment.R
+#
+# Create graphs for basic descriptive statistics (pie charts)
+#
+# Chanwool Kim, April 29, 2023
+#
+#=========================================================================#
 
+
+#---------+---------+---------+---------+---------+---------+
+# Additional analysis on payment arrangement
+#---------+---------+---------+---------+---------+---------+
+
+# LOAD DATA
 load(file=paste0(working_data_dir, "/analysis_info.RData"))
 load(file=paste0(working_data_dir, "/account_info_analysis.RData"))
 load(file=paste0(working_data_dir, "/financial_assistance_info.RData"))
@@ -14,6 +27,7 @@ financial_assist_account <- financial_assist %>%
            year(financial_assist_end)>=2019) %>%
   select(ACCOUNT_NO, financial_assist_start, financial_assist_end)
 
+
 # Payment arrangement amount
 payment_arrange_amount <- payment_arrangement_info %>%
   mutate(amount_paid=AMOUNT_DUE-OUTSTANDING_AMT) %>%
@@ -21,6 +35,7 @@ payment_arrange_amount <- payment_arrangement_info %>%
   summarise(amount_due=sum(AMOUNT_DUE, na.rm=TRUE),
             amount_paid=sum(amount_paid, na.rm=TRUE),
             amount_outstanding=sum(OUTSTANDING_AMT, na.rm=TRUE))
+
 
 payment_arrange_amount <- payment_arrangement %>%
   filter(!grepl("^[0-9]", STATUS_CD)) %>%
@@ -34,6 +49,7 @@ payment_arrange_amount <- payment_arrangement %>%
   right_join(payment_arrange_amount, by="PAY_ARRANGEMENT_REF") %>%
   filter(payment_arrange_start_year>=2019 |
            payment_arrange_end_year>=2019)
+
 
 # Only consider single family
 account_info_subset <- account_info_merge %>%
@@ -212,7 +228,7 @@ no_plan_bill <- bill_info_filtered %>%
          due_year=year(DUE_DT)) %>%
   select(ACCOUNT_NO, DUE_DT,
          due_year, delinquent, delinquent_amount,
-         PREV_BILL_AMT, AR_DUE_BEFORE_BILL, SOURCE_CD,
+         PREV_BILL_AMT, TOTAL_PAYMENTS, AR_DUE_BEFORE_BILL, SOURCE_CD,
          PERIOD_FROM_DT, PERIOD_TO_DT)
 
 # Those on a payment plan
@@ -229,7 +245,7 @@ plan_bill <- bill_info_filtered %>%
          due_year=year(DUE_DT)) %>%
   select(ACCOUNT_NO, DUE_DT,
          due_year, delinquent, delinquent_amount,
-         PREV_BILL_AMT, AR_DUE_BEFORE_BILL, SOURCE_CD,
+         PREV_BILL_AMT, TOTAL_PAYMENTS, AR_DUE_BEFORE_BILL, SOURCE_CD,
          PERIOD_FROM_DT, PERIOD_TO_DT)
 
 delinquency_status <- rbind(no_plan_bill, plan_bill) %>%

@@ -124,5 +124,5 @@ financial_assist_by_year <- financial_assist %>%
          financial_assist_2022=financial_assist_2022>0)
 
 save(payment_arrange_amount, payment_arrange_by_year,
-     linc_info, financial_assist_by_year,
+     linc_info, financial_assist_detail, financial_assist_by_year,
      file=paste0(working_data_dir, "/financial_assistance_info.RData"))
