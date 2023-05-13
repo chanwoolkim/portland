@@ -3,7 +3,7 @@
 load(file=paste0(working_data_dir, "/account_info_analysis.RData"))
 
 financial_assist_detail <- list.files(path=data_dir,
-                                      pattern="*.csv",
+                                      pattern="Linc Data - *",
                                       full.names=TRUE) %>% 
   lapply(read_csv) %>%
   bind_rows

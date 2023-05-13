@@ -1,6 +1,17 @@
 # Diff-in-diff analysis for different assistance programmes
 
 # Diff-in-diff ####
+# LOAD DATA
+load(file=paste0(working_data_dir, "/analysis_info.RData"))
+load(file=paste0(working_data_dir, "/delinquency_status.RData"))
+load(file=paste0(working_data_dir, "/financial_assistance_info.RData"))
+
+delinquency_status <- delinquency_status %>%
+  arrange(ACCOUNT_NO, DUE_DT) %>%
+  mutate(period_month=round(interval(PERIOD_FROM_DT, PERIOD_TO_DT)/months(1)),
+         period_month=ifelse(period_month==0, 1, period_month),
+         delinquent_amount=delinquent_amount/period_month)
+
 delinquency_status <- delinquency_status %>%
   mutate(due_ym=str_c(due_year, month(DUE_DT)))
 
@@ -50,7 +61,8 @@ TS(tab, file="assistance_did", header=c("lcccc"),
 delinquency_status <-
   left_join(delinquency_status,
             bill_info %>%
-              mutate(ACCOUNT_NO=as.character(ACCOUNT_NO)) %>%
+              mutate(ACCOUNT_NO=as.character(ACCOUNT_NO),
+                     DUE_DT=mdy(DUE_DT)) %>%
               select(ACCOUNT_NO, BILL_DT, DUE_DT),
             by=c("ACCOUNT_NO", "DUE_DT")) %>%
   mutate(BILL_DT=mdy(BILL_DT))
@@ -58,7 +70,8 @@ delinquency_status <-
 delinquency_status <-
   left_join(delinquency_status,
             financial_assist_detail %>%
-              mutate(BILL_DT=mdy(BILL_DT)) %>%
+              mutate(ACCOUNT_NO=as.character(ACCOUNT_NO),
+                     BILL_DT=mdy(BILL_DT)) %>%
               select(ACCOUNT_NO, BILL_DT, LINC_TIER_TYPE),
             by=c("ACCOUNT_NO", "BILL_DT"))
 

@@ -90,7 +90,7 @@ save(acs_tract, acs_tract_geometry,
 
 
 # Portland statistics by tract ####
-tracts <- read.csv(file=paste0(working_data_dir, "/portland_geoid.csv"),
+tracts <- read.csv(file=paste0(auxiliary_data_dir, "/portland_geoid.csv"),
                    header=TRUE)$GEOID
 
 portland_acs_tract <- acs_tract %>% 
@@ -180,13 +180,13 @@ portland_demographics_tract_wide <- portland_demographics_tract_wide %>%
   ungroup()
 
 # Add in life expectancy info
-life_expectancy <- read.csv(paste0(working_data_dir, "/US_A.CSV"),
+life_expectancy <- read.csv(paste0(auxiliary_data_dir, "/US_A.CSV"),
                             header=TRUE) %>%
   select(tract_id=Tract.ID, life_expectancy=e.0.) %>%
   filter(grepl("^41", tract_id)) %>%
   mutate(tract_id=as.character(substr(tract_id, 6, 12)))
 
-census_tract_change <- read.table(file=paste0(working_data_dir,
+census_tract_change <- read.table(file=paste0(auxiliary_data_dir,
                                               "/tab20_tract20_tract10_st41.txt"),
                                   sep="|", quote="", comment.char="",
                                   fill=TRUE, header=TRUE) %>%

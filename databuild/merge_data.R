@@ -8,7 +8,7 @@ load(file=paste0(working_data_dir, "/geocode_address_info_subset.RData"))
 load(file=paste0(working_data_dir, "/acs_tract.RData"))
 load(file=paste0(working_data_dir, "/portland_demographics_tract.RData"))
 
-tracts <- read.csv(file=paste0(working_data_dir, "/portland_geoid.csv"),
+tracts <- read.csv(file=paste0(auxiliary_data_dir, "/portland_geoid.csv"),
                    header=TRUE)$GEOID
 
 # Choose valid accounts
