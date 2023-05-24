@@ -1,23 +1,28 @@
 # preliminary.R
 
-library(acs)
+# Linux box cannot install these packages
+if (Sys.info()[4]!="jdube01"){
+  library(acs)
+  library(Hmisc)
+  library(httr)
+  library(tidycensus)
+  library(tidygeocoder)
+  library(tidyverse)
+  library(textables)
+}
+
+library(dplyr)
 library(data.table)
 library(fixest)
 library(ggplot2)
 library(ggrepel)
 library(glue)
-library(Hmisc)
-library(httr)
 library(jsonlite)
 library(lubridate)
 library(margins)
 library(RColorBrewer)
 library(scales)
 library(stringr)
-library(tidycensus)
-library(tidygeocoder)
-library(tidyverse)
-library(textables)
 
 colours_set <- brewer.pal("Set2", n=8)
 
