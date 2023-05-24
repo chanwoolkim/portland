@@ -38,6 +38,10 @@ load(file=paste0(working_data_dir, "/delinquency_status.RData"))
 load(file=paste0(working_data_dir, "/geocode_address_info_subset.RData"))
 load(file=paste0(working_data_dir, "/analysis_info.RData"))
 
+
+#---------+---------+---------+---------+---------+---------+
+# Create Purchase Panel and List of Unique Accounts
+#---------+---------+---------+---------+---------+---------+
 # Match person number
 delinquency_status <- left_join(delinquency_status,
                                 account_info %>% select(ACCOUNT_NO, PERSON_NO),
@@ -71,3 +75,9 @@ output_data_summary <- output_data %>%
   summarise(observe_from_dt=min(PERIOD_FROM_DT),
             observe_to_dt=max(PERIOD_TO_DT))
   
+
+
+#---------+---------+---------+---------+---------+---------+
+# Create List of Accounts for TransUnion
+#---------+---------+---------+---------+---------+---------+
+write.csv(output_data_summary,file="data/forTransUnion/accountlist.csv",row.names=FALSE)
