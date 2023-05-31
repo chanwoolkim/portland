@@ -23,6 +23,7 @@ library(margins)
 library(RColorBrewer)
 library(scales)
 library(stringr)
+library(tidyr)
 
 colours_set <- brewer.pal("Set2", n=8)
 
