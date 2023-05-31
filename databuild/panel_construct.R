@@ -2,6 +2,7 @@
 load(file=paste0(working_data_dir, "/analysis_info.RData"))
 load(file=paste0(working_data_dir, "/account_info_analysis.RData"))
 load(file=paste0(working_data_dir, "/financial_assistance_info.RData"))
+load(file=paste0(working_data_dir, "/usage_financial.RData"))
 
 # Only consider single family
 account_info_subset <- account_info_merge %>%
@@ -13,13 +14,15 @@ account_info_subset <- account_info_merge %>%
 bill_info <- bill_info %>%
   mutate(PERIOD_FROM_DT=mdy(PERIOD_FROM_DT),
          PERIOD_TO_DT=mdy(PERIOD_TO_DT),
-         DUE_DT=mdy(DUE_DT))
+         DUE_DT=mdy(DUE_DT),
+         BILL_RUN_DT=mdy(BILL_RUN_DT))
 
 bill_info_filtered <- bill_info %>% 
   filter(!CANCELED_BILL_YN,
          !is.na(PERIOD_FROM_DT), 
          !is.na(PERIOD_TO_DT),
          !is.na(DUE_DT),
+         !is.na(BILL_RUN_DT),
          !ERROR_YN,
          AUDIT_OR_LIVE=="L",
          BILL_TP %in% c("REGLR", "MSTMT"),
@@ -37,11 +40,11 @@ no_plan_bill <- bill_info_filtered %>%
          delinquent_amount=ifelse(is.na(delinquent_amount),
                                   0,
                                   delinquent_amount),
-         due_year=year(DUE_DT)) %>%
+         bill_year=year(BILL_RUN_DT)) %>%
   select(ACCOUNT_NO, DUE_DT,
-         due_year, delinquent, delinquent_amount,
-         PREV_BILL_AMT, TOTAL_PAYMENTS, AR_DUE_BEFORE_BILL, SOURCE_CD,
-         PERIOD_FROM_DT, PERIOD_TO_DT)
+         bill_year, delinquent, delinquent_amount,
+         PREV_BILL_AMT, TOTAL_PAYMENTS, AR_DUE_BEFORE_BILL, AR_DUE_AFTER_BILL, SOURCE_CD,
+         PERIOD_FROM_DT, PERIOD_TO_DT, BILL_RUN_DT)
 
 # Those on a payment plan
 plan_bill <- bill_info_filtered %>%
@@ -54,11 +57,11 @@ plan_bill <- bill_info_filtered %>%
          delinquent_amount=ifelse(is.na(delinquent_amount),
                                   0,
                                   delinquent_amount),
-         due_year=year(DUE_DT)) %>%
+         bill_year=year(BILL_RUN_DT)) %>%
   select(ACCOUNT_NO, DUE_DT,
-         due_year, delinquent, delinquent_amount,
-         PREV_BILL_AMT, TOTAL_PAYMENTS, AR_DUE_BEFORE_BILL, SOURCE_CD,
-         PERIOD_FROM_DT, PERIOD_TO_DT)
+         bill_year, delinquent, delinquent_amount,
+         PREV_BILL_AMT, TOTAL_PAYMENTS, AR_DUE_BEFORE_BILL, AR_DUE_AFTER_BILL, SOURCE_CD,
+         PERIOD_FROM_DT, PERIOD_TO_DT, BILL_RUN_DT)
 
 delinquency_status <- rbind(no_plan_bill, plan_bill) %>%
   mutate(ACCOUNT_NO=as.character(ACCOUNT_NO)) %>%
@@ -323,6 +326,14 @@ delinquency_status <- rbind(delinquency_status_sub,
                             delinquency_status_rest,
                             delinquency_status_none)
 
+# Add in usage and detailed bill info
+portland_panel <- delinquency_status %>%
+  left_join(usage_info, by=c("ACCOUNT_NO", "BILL_RUN_DT")) %>%
+  left_join(financial_info, by=c("ACCOUNT_NO", "BILL_RUN_DT"))
+
 # Save the dataset
 save(delinquency_status,
      file=paste0(working_data_dir, "/delinquency_status.RData"))
+
+save(portland_panel,
+     file=paste0(working_data_dir, "/portland_panel.RData"))
