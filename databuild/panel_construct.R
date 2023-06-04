@@ -326,10 +326,96 @@ delinquency_status <- rbind(delinquency_status_sub,
                             delinquency_status_rest,
                             delinquency_status_none)
 
+
+# Create final panel dataset ####
 # Add in usage and detailed bill info
 portland_panel <- delinquency_status %>%
   left_join(usage_info, by=c("ACCOUNT_NO", "BILL_RUN_DT")) %>%
   left_join(financial_info, by=c("ACCOUNT_NO", "BILL_RUN_DT"))
+
+# Aggregate for monthly payments
+portland_panel_sub <- portland_panel %>%
+  filter((SOURCE_CD=="QB1" & !is.na(usage_bill_amount)) | 
+           SOURCE_CD=="QB2" | SOURCE_CD=="QB3")
+
+portland_panel <- portland_panel %>%
+  filter(SOURCE_CD=="",
+         !is.na(usage_bill_amount)) %>%
+  mutate(across(usage_bill_amount:bill_leaf, ~ replace_na(.x, 0)))
+
+# First sequence must start with QB1, assign group numbers
+portland_panel_sub <- portland_panel_sub %>%
+  arrange(ACCOUNT_NO, BILL_RUN_DT) %>%
+  mutate(source_num=substr(SOURCE_CD, 3, 3) %>% as.numeric(),
+         source_lag=lag(source_num),
+         source_lag_lag=lag(source_lag),
+         to_keep=case_when(
+           source_num==1 ~ TRUE,
+           source_num==2 & source_lag==1 ~ TRUE,
+           source_num==2 & source_lag!=1 ~ FALSE,
+           source_num==3 & source_lag==2 & source_lag_lag==1 ~ TRUE,
+           source_num==3 & source_lag==2 & source_lag_lag!=1 ~ FALSE,
+           source_num==3 & source_lag!=2 ~ FALSE)) %>%
+  filter(to_keep)
+
+portland_panel_sub <- portland_panel_sub %>%
+  arrange(source_num, ACCOUNT_NO, BILL_RUN_DT) %>%
+  group_by(ACCOUNT_NO) %>%
+  mutate(group_num=row_number()) %>%
+  ungroup() %>%
+  arrange(ACCOUNT_NO, BILL_RUN_DT) %>%
+  mutate(group_num=ifelse(source_num!=1, NA, group_num)) %>%
+  group_by(ACCOUNT_NO) %>%
+  fill(group_num) %>%
+  ungroup()
+
+portland_panel_sub <- portland_panel_sub %>%
+  group_by(ACCOUNT_NO, group_num) %>%
+  summarise(DUE_DT=max(DUE_DT),
+            PREV_BILL_AMT=first(PREV_BILL_AMT),
+            TOTAL_PAYMENTS=sum(TOTAL_PAYMENTS, na.rm=TRUE),
+            PERIOD_FROM_DT=min(PERIOD_FROM_DT),
+            PERIOD_TO_DT=max(PERIOD_TO_DT),
+            BILL_RUN_DT=min(BILL_RUN_DT),
+            across(account:payment_arrange, ~ sum(.x, na.rm=TRUE)),
+            payment_arrange_status=sum(payment_arrange_status, na.rm=FALSE),
+            across(financial_assist:bill_leaf, ~ sum(.x, na.rm=TRUE))) %>%
+  ungroup() %>%
+  transmute(ACCOUNT_NO, DUE_DT, bill_year=year(BILL_RUN_DT),
+            delinquent=PREV_BILL_AMT+TOTAL_PAYMENTS>0,
+            delinquent_amount=PREV_BILL_AMT+TOTAL_PAYMENTS,
+            PREV_BILL_AMT, TOTAL_PAYMENTS,
+            AR_DUE_BEFORE_BILL=PREV_BILL_AMT+TOTAL_PAYMENTS,
+            AR_DUE_AFTER_BILL=AR_DUE_BEFORE_BILL+usage_bill_amount,
+            SOURCE_CD="",
+            PERIOD_FROM_DT, PERIOD_TO_DT, BILL_RUN_DT,
+            account=account>0,
+            payment_arrange=payment_arrange>0,
+            payment_arrange_status=case_when(payment_arrange_status>0 ~ TRUE,
+                                             payment_arrange_status==0 ~ FALSE),
+            financial_assist=financial_assist>0,
+            cutoff=cutoff>0,
+            usage_bill_amount, usage_bill_water_cons, usage_bill_sewer_cons,
+            water_cons, sewer_cons, bill_sewer_cons, bill_water_cons,
+            bill_payment, bill_penalty, bill_donate, bill_bankrupt, bill_leaf)
+
+portland_panel_sub <- portland_panel_sub %>%
+  mutate(AR_DUE_AFTER_BILL=ifelse(AR_DUE_BEFORE_BILL<0,
+                                  AR_DUE_AFTER_BILL-AR_DUE_BEFORE_BILL,
+                                  AR_DUE_AFTER_BILL),
+         AR_DUE_BEFORE_BILL=ifelse(AR_DUE_BEFORE_BILL<0,
+                                  0,
+                                  AR_DUE_BEFORE_BILL),
+         delinquent_amount=ifelse(delinquent_amount<0, 0, delinquent_amount))
+
+portland_panel <- rbind(portland_panel,
+                        portland_panel_sub) %>%
+  arrange(ACCOUNT_NO, BILL_RUN_DT) %>%
+  rename(previous_bill=PREV_BILL_AMT,
+         total_payments=TOTAL_PAYMENTS,
+         leftover_debt=AR_DUE_BEFORE_BILL,
+         current_bill=AR_DUE_AFTER_BILL) %>%
+  select(-SOURCE_CD, -account)
 
 # Save the dataset
 save(delinquency_status,
