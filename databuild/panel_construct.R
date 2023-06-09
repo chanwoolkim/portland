@@ -90,45 +90,9 @@ portland_panel_sub <- portland_panel_sub %>%
   ungroup()
 
 portland_panel_sub <- portland_panel_sub %>%
-  group_by(ACCOUNT_NO, PERSON_NO, LOCATION_NO, census_tract, group_num) %>%
-  summarise(DUE_DT=max(DUE_DT),
-            PREV_BILL_AMT=first(PREV_BILL_AMT),
-            TOTAL_PAYMENTS=sum(TOTAL_PAYMENTS, na.rm=TRUE),
-            PERIOD_FROM_DT=min(PERIOD_FROM_DT),
-            PERIOD_TO_DT=max(PERIOD_TO_DT),
-            BILL_RUN_DT=min(BILL_RUN_DT),
-            across(account:payment_arrange, ~ sum(.x, na.rm=TRUE)),
-            payment_arrange_status=sum(payment_arrange_status, na.rm=FALSE),
-            across(financial_assist:CRISIS_VOUCHER_AMT, ~ sum(.x, na.rm=TRUE))) %>%
-  ungroup() %>%
-  transmute(ACCOUNT_NO, PERSON_NO, LOCATION_NO, DUE_DT, census_tract,
-            bill_year=year(BILL_RUN_DT),
-            delinquent=PREV_BILL_AMT+TOTAL_PAYMENTS>0,
-            delinquent_amount=PREV_BILL_AMT+TOTAL_PAYMENTS,
-            PREV_BILL_AMT, TOTAL_PAYMENTS,
-            AR_DUE_BEFORE_BILL=PREV_BILL_AMT+TOTAL_PAYMENTS,
-            AR_DUE_AFTER_BILL=AR_DUE_BEFORE_BILL+usage_bill_amount,
-            NET_BILL_AMT, BILLED_AMT_BEFORE_DIS, LINC_DISCOUNT_AMT, CRISIS_VOUCHER_AMT,
-            SOURCE_CD="",
-            PERIOD_FROM_DT, PERIOD_TO_DT, BILL_RUN_DT,
-            account=account>0,
-            payment_arrange=payment_arrange>0,
-            payment_arrange_status=case_when(payment_arrange_status>0 ~ TRUE,
-                                             payment_arrange_status==0 ~ FALSE),
-            financial_assist=financial_assist>0,
-            cutoff=cutoff>0,
-            usage_bill_amount, usage_bill_water_cons, usage_bill_sewer_cons,
-            water_cons, sewer_cons, bill_sewer_cons, bill_water_cons,
-            bill_payment, bill_penalty, bill_donate, bill_bankrupt, bill_leaf)
-
-portland_panel_sub <- portland_panel_sub %>%
-  mutate(AR_DUE_AFTER_BILL=ifelse(NET_BILL_AMT!=0,
-                                  AR_DUE_BEFORE_BILL+NET_BILL_AMT,
-                                  AR_DUE_AFTER_BILL),
-         delinquent_amount=ifelse(delinquent_amount<0, 0, delinquent_amount),
-         BILLED_AMT_BEFORE_DIS=ifelse(NET_BILL_AMT==0, NA, BILLED_AMT_BEFORE_DIS),
-         LINC_DISCOUNT_AMT=ifelse(NET_BILL_AMT==0, NA, LINC_DISCOUNT_AMT),
-         NET_BILL_AMT=ifelse(NET_BILL_AMT==0, NA, NET_BILL_AMT))
+  mutate(AR_DUE_BEFORE_BILL=replace_na(AR_DUE_BEFORE_BILL, 0),
+         across(usage_bill_amount:bill_leaf, ~ replace_na(.x, 0))) %>%
+  select(-source_num, -source_lag, -source_lag_lag, -to_keep, -group_num)
 
 portland_panel <- rbind(portland_panel_sub, portland_panel, portland_panel_na) %>%
   arrange(ACCOUNT_NO, BILL_RUN_DT) %>%
