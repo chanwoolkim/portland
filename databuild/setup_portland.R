@@ -8,15 +8,15 @@
 #=========================================================================#
 
 
-location_relation <- read.table(file=paste0(data_dir, "/UM00120T_FINAL.txt"),
+location_relation <- read.table(file=paste0(data_dir, "/UM00120T.txt"),
                                 sep=",", quote="", comment.char="",
                                 fill=TRUE, header=TRUE)
 
-address_info <- read.table(file=paste0(data_dir, "/UM00100M_FINAL.txt"),
+address_info <- read.table(file=paste0(data_dir, "/UM00100M.txt"),
                            sep=",", quote="", comment.char="",
                            fill=TRUE, header=TRUE)
 
-account_info <- read.table(file=paste0(data_dir, "/UM00200M_Redacted FINAL.txt"),
+account_info <- read.table(file=paste0(data_dir, "/UM00200M.txt"),
                            sep=",", quote="", comment.char="",
                            fill=TRUE, header=TRUE)
 
@@ -32,7 +32,7 @@ bill_info <- read.table(file=paste0(data_dir, "/UM00260T_redacted_FINAL.txt"),
                         sep=",", quote="", comment.char="",
                         fill=TRUE, header=TRUE)
 
-financial_assist <- read.table(file=paste0(data_dir, "/UM00232T_FINAL.txt"),
+financial_assist <- read.table(file=paste0(data_dir, "/UM00232T.txt"),
                                sep=",", quote="", comment.char="",
                                fill=TRUE, header=TRUE)
 
@@ -44,11 +44,11 @@ reconnect_info <- read.table(file=paste0(data_dir, "/RS00200M_RCNCT_redacted_FIN
                              sep=",", quote="", comment.char="",
                              fill=TRUE, header=TRUE)
 
-payment_arrangement <- read.table(file=paste0(data_dir, "/CO00200M_FINAL.txt"),
+payment_arrangement <- read.table(file=paste0(data_dir, "/CO00200M.txt"),
                                   sep=",", quote="", comment.char="",
                                   fill=TRUE, header=TRUE)
 
-payment_arrangement_info <- read.table(file=paste0(data_dir, "/CO00210T_FINAL.txt"),
+payment_arrangement_info <- read.table(file=paste0(data_dir, "/CO00210T.txt"),
                                        sep=",", quote="", comment.char="",
                                        fill=TRUE, header=TRUE)
 
