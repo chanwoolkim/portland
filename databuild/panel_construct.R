@@ -17,7 +17,8 @@ location_relation <- location_relation %>%
          EFFECTIVE_DT=mdy(EFFECTIVE_DT),
          ACTUAL_END_DT=mdy(ACTUAL_END_DT),
          PERSON_NO=as.numeric(PERSON_NO),
-         LOCATION_NO=as.numeric(LOCATION_NO))
+         LOCATION_NO=as.numeric(LOCATION_NO),
+         OCCUPANCY=ifelse(OWNER_YN, "Owner", "Tenant"))
 
 portland_panel <- portland_panel %>%
   left_join(location_relation %>%
@@ -25,7 +26,8 @@ portland_panel <- portland_panel %>%
                      PERSON_NO,
                      LOCATION_NO,
                      EFFECTIVE_DT,
-                     ACTUAL_END_DT),
+                     ACTUAL_END_DT,
+                     OCCUPANCY),
             by=c("ACCOUNT_NO"="ACCT_TO_FRC_CONNECT",
                  "PERSON_NO")) %>%
   filter(!is.na(EFFECTIVE_DT),
