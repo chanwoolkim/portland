@@ -3,7 +3,7 @@
 # Load address info from Portland data
 address_info <- read.table(file=paste0(data_dir, "/UM00100M_FINAL.txt"),
                            sep=",", quote="", comment.char="",
-                           fill=TRUE, header=TRUE)
+                           fill=TRUE, header=TRUE, stringsAsFactors=FALSE)
 
 address_info <- address_info %>%
   mutate(address=paste(
