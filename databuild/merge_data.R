@@ -1,7 +1,7 @@
 # Merge all data into account
 
 # Basic data cleaning ####
-load(file=paste0(working_data_dir, "/analysis_info.RData"))
+load(file=paste0(working_data_dir, "/analysis_info.RData.gz"))
 load(file=paste0(working_data_dir, "/delinquency_info.RData"))
 load(file=paste0(working_data_dir, "/financial_assistance_info.RData"))
 load(file=paste0(working_data_dir, "/geocode_address_info_subset.RData"))

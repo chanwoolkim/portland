@@ -120,7 +120,7 @@ code_info <- read.table(file=paste0(data_dir, "/AR50100C_FINAL.txt"),
 
 
 # Fix comma issue ####
-fix_comma <- function(df) {
+fix_comma <- function(df, main_var) {
   loc_var <- which(colnames(df)=="U_VERSION")
   
   if (length(loc_var)==0) {
@@ -129,8 +129,9 @@ fix_comma <- function(df) {
     loc_comma <- which(df$U_VERSION=="")[c(TRUE, FALSE)]
     n_last <- ncol(df)
     df[loc_comma, loc_var:(n_last-1)] <- df[loc_comma, (loc_var+1):n_last]
-    df[loc_comma, n_last] <- df[(loc_comma+1), 1]
-    df <- df[-(loc_comma+1),]
+    df <- df %>%
+      filter(!grepl("\\D", get(main_var)),
+             get(main_var)!="")
     return(df)
   }
 }
@@ -138,12 +139,12 @@ fix_comma <- function(df) {
 account_info <- fix_comma(account_info)
 address_info <- fix_comma(address_info)
 bill_info <- fix_comma(bill_info)
-location_relation <- fix_comma(location_relation)
+location_relation <- fix_comma(location_relation, "LOCATION_NO")
 financial_assist <- fix_comma(financial_assist)
 cutoff_info <- fix_comma(cutoff_info)
 reconnect_info <- fix_comma(reconnect_info)
-payment_arrangement <- fix_comma(payment_arrangement)
-payment_arrangement_info <- fix_comma(payment_arrangement_info)
+payment_arrangement <- payment_arrangement %>% filter(U_VERSION!="")
+payment_arrangement_info <- payment_arrangement_info %>% filter(U_VERSION!="")
 code_info <- fix_comma(code_info)
 financial_info <- fix_comma(financial_info)
 usage_info <- fix_comma(usage_info)

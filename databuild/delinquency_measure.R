@@ -1,6 +1,6 @@
 # Measures of Delinquency/Cutoff
 
-load(file=paste0(working_data_dir, "/analysis_info.RData"))
+load(file=paste0(working_data_dir, "/analysis_info.RData.gz"))
 
 bill_info <- bill_info %>%
   mutate(PERIOD_FROM_DT=mdy(PERIOD_FROM_DT),

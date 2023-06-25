@@ -1,5 +1,5 @@
 # LOAD DATA
-load(file=paste0(working_data_dir, "/analysis_info.RData"))
+load(file=paste0(working_data_dir, "/analysis_info.RData.gz"))
 load(file=paste0(working_data_dir, "/account_info_analysis.RData"))
 load(file=paste0(working_data_dir, "/financial_assistance_info.RData"))
 
