@@ -51,16 +51,19 @@ account_info_merge <-
   mutate(n_bill=n_bill_2019+
            n_bill_2020+
            n_bill_2021+
-           n_bill_2022,
+           n_bill_2022+
+           n_bill_2023,
          delinquent=delinquent_2019+
            delinquent_2020+
            delinquent_2021+
-           delinquent_2022,
+           delinquent_2022+
+           delinquent_2023,
          delinquency_rate=delinquent/n_bill,
          delinquent_amount=delinquent_amount_2019+
            delinquent_amount_2020+
            delinquent_amount_2021+
-           delinquent_amount_2022,
+           delinquent_amount_2022+
+           delinquent_amount_2023,
          delinquent_amount=ifelse(delinquent_amount==0, NA, delinquent_amount),
          delinquent_amount_2019=
            ifelse(delinquent_amount_2019==0, NA, delinquent_amount_2019),
@@ -70,10 +73,13 @@ account_info_merge <-
            ifelse(delinquent_amount_2021==0, NA, delinquent_amount_2021),
          delinquent_amount_2022=
            ifelse(delinquent_amount_2022==0, NA, delinquent_amount_2022),
+         delinquent_amount_2023=
+           ifelse(delinquent_amount_2023==0, NA, delinquent_amount_2023),
          total_bill=total_bill_2019+
            total_bill_2020+
            total_bill_2021+
-           total_bill_2022)
+           total_bill_2022+
+           total_bill_2023)
 
 account_info_merge <-
   left_join(account_info_merge,
@@ -87,11 +93,13 @@ account_info_merge <-
   replace_na(list(payment_arrange_2019=FALSE,
                   payment_arrange_2020=FALSE,
                   payment_arrange_2021=FALSE,
-                  payment_arrange_2022=FALSE)) %>%
+                  payment_arrange_2022=FALSE,
+                  payment_arrange_2023=FALSE)) %>%
   mutate(payment_arrange=payment_arrange_2019 | 
            payment_arrange_2020 |
            payment_arrange_2021 | 
-           payment_arrange_2022)
+           payment_arrange_2022 | 
+           payment_arrange_2023)
 
 account_info_merge <-
   left_join(account_info_merge,
@@ -101,10 +109,12 @@ account_info_merge <-
   rowwise() %>% 
   mutate(discount_amount=sum(discount_amount_2020,
                              discount_amount_2021,
-                             discount_amount_2022, na.rm=TRUE),
+                             discount_amount_2022,
+                             discount_amount_2023, na.rm=TRUE),
          crisis_voucher=sum(crisis_voucher_2020,
                             crisis_voucher_2021,
-                            crisis_voucher_2022, na.rm=TRUE),
+                            crisis_voucher_2022,
+                            crisis_voucher_2023, na.rm=TRUE),
          discount_amount=ifelse(discount_amount==0, NA, discount_amount),
          discount_amount_2020=
            ifelse(discount_amount_2020==0, NA, discount_amount_2020),
@@ -112,13 +122,17 @@ account_info_merge <-
            ifelse(discount_amount_2021==0, NA, discount_amount_2021),
          discount_amount_2022=
            ifelse(discount_amount_2022==0, NA, discount_amount_2022),
+         discount_amount_2023=
+           ifelse(discount_amount_2023==0, NA, discount_amount_2023),
          crisis_voucher=ifelse(crisis_voucher==0, NA, crisis_voucher),
          crisis_voucher_2020=
            ifelse(crisis_voucher_2020==0, NA, crisis_voucher_2020),
          crisis_voucher_2021=
            ifelse(crisis_voucher_2021==0, NA, crisis_voucher_2021),
          crisis_voucher_2022=
-           ifelse(crisis_voucher_2022==0, NA, crisis_voucher_2022))
+           ifelse(crisis_voucher_2022==0, NA, crisis_voucher_2022),
+         crisis_voucher_2023=
+           ifelse(crisis_voucher_2023==0, NA, crisis_voucher_2023))
 
 account_info_merge <-
   left_join(account_info_merge,
@@ -127,22 +141,26 @@ account_info_merge <-
   replace_na(list(financial_assist_2019=FALSE,
                   financial_assist_2020=FALSE,
                   financial_assist_2021=FALSE,
-                  financial_assist_2022=FALSE)) %>%
+                  financial_assist_2022=FALSE,
+                  financial_assist_2023=FALSE)) %>%
   mutate(financial_assist=financial_assist_2019 |
            financial_assist_2020 |
            financial_assist_2021 |
-           financial_assist_2022)
+           financial_assist_2022 |
+           financial_assist_2023)
 
 account_info_merge <-
   left_join(account_info_merge,
             cutoff_reconnect %>%
-              select(ACCOUNT_NO, cutoff_2019, cutoff_2020, cutoff_2021, cutoff_2022),
+              select(ACCOUNT_NO,
+                     cutoff_2019, cutoff_2020, cutoff_2021, cutoff_2022, cutoff_2023),
             by="ACCOUNT_NO") %>%
   replace_na(list(cutoff_2019=FALSE,
                   cutoff_2020=FALSE,
                   cutoff_2021=FALSE,
-                  cutoff_2022=FALSE)) %>%
-  mutate(cutoff=cutoff_2019 | cutoff_2020 | cutoff_2021 | cutoff_2022)
+                  cutoff_2022=FALSE,
+                  cutoff_2023=FALSE)) %>%
+  mutate(cutoff=cutoff_2019 | cutoff_2020 | cutoff_2021 | cutoff_2022 | cutoff_2023)
 
 # Consider only the sample with valid Census tract
 account_info_merge <- account_info_merge %>%

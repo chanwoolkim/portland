@@ -54,17 +54,23 @@ payment_arrange_by_year <- payment_arrangement %>%
          payment_arrange_2022=
            between(2022,
                    year(payment_arrange_start),
+                   year(payment_arrange_end)),
+         payment_arrange_2023=
+           between(2023,
+                   year(payment_arrange_start),
                    year(payment_arrange_end))) %>%
   group_by(ACCOUNT_NO) %>%
   summarise(payment_arrange_2019=sum(payment_arrange_2019),
             payment_arrange_2020=sum(payment_arrange_2020),
             payment_arrange_2021=sum(payment_arrange_2021),
-            payment_arrange_2022=sum(payment_arrange_2022)) %>%
+            payment_arrange_2022=sum(payment_arrange_2022),
+            payment_arrange_2023=sum(payment_arrange_2023)) %>%
   ungroup() %>%
   mutate(payment_arrange_2019=payment_arrange_2019>0,
          payment_arrange_2020=payment_arrange_2020>0,
          payment_arrange_2021=payment_arrange_2021>0,
-         payment_arrange_2022=payment_arrange_2022>0)
+         payment_arrange_2022=payment_arrange_2022>0,
+         payment_arrange_2023=payment_arrange_2023>0)
 
 
 # Financial assistance by LINC tier ####
@@ -113,17 +119,23 @@ financial_assist_by_year <- financial_assist %>%
          financial_assist_2022=
            between(2022,
                    year(financial_assist_start),
+                   year(financial_assist_end)),
+         financial_assist_2023=
+           between(2023,
+                   year(financial_assist_start),
                    year(financial_assist_end))) %>%
   group_by(ACCOUNT_NO) %>%
   summarise(financial_assist_2019=sum(financial_assist_2019),
             financial_assist_2020=sum(financial_assist_2020),
             financial_assist_2021=sum(financial_assist_2021),
-            financial_assist_2022=sum(financial_assist_2022)) %>%
+            financial_assist_2022=sum(financial_assist_2022),
+            financial_assist_2023=sum(financial_assist_2023)) %>%
   ungroup() %>%
   mutate(financial_assist_2019=financial_assist_2019>0,
          financial_assist_2020=financial_assist_2020>0,
          financial_assist_2021=financial_assist_2021>0,
-         financial_assist_2022=financial_assist_2022>0)
+         financial_assist_2022=financial_assist_2022>0,
+         financial_assist_2023=financial_assist_2023>0)
 
 save(payment_arrange_amount, payment_arrange_by_year,
      linc_info, financial_assist_detail, financial_assist_by_year,

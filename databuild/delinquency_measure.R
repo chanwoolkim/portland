@@ -111,17 +111,21 @@ cutoff_reconnect <- cutoff_reconnect %>%
          cutoff_2021=
            between(2021, year(CUTOFF_DATE), year(RECONNECT_DATE)),
          cutoff_2022=
-           between(2022, year(CUTOFF_DATE), year(RECONNECT_DATE))) %>%
+           between(2022, year(CUTOFF_DATE), year(RECONNECT_DATE)),
+         cutoff_2023=
+           between(2023, year(CUTOFF_DATE), year(RECONNECT_DATE))) %>%
   group_by(ACCOUNT_NO, PERSON_NO, LOCATION_NO) %>%
   summarise(cutoff_2019=sum(cutoff_2019),
             cutoff_2020=sum(cutoff_2020),
             cutoff_2021=sum(cutoff_2021),
-            cutoff_2022=sum(cutoff_2022)) %>%
+            cutoff_2022=sum(cutoff_2022),
+            cutoff_2023=sum(cutoff_2023)) %>%
   ungroup() %>%
   mutate(cutoff_2019=cutoff_2019>0,
          cutoff_2020=cutoff_2020>0,
          cutoff_2021=cutoff_2021>0,
-         cutoff_2022=cutoff_2022>0)
+         cutoff_2022=cutoff_2022>0,
+         cutoff_2023=cutoff_2023>0)
 
 # Save data
 save(delinquency_status,
