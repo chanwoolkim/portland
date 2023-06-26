@@ -120,34 +120,41 @@ code_info <- read.table(file=paste0(data_dir, "/AR50100C_FINAL.txt"),
 
 
 # Fix comma issue ####
-fix_comma <- function(df, main_var) {
+fix_comma <- function(df, main_var, num=FALSE) {
   loc_var <- which(colnames(df)=="U_VERSION")
   
   if (length(loc_var)==0) {
     return(df)
   } else {
-    loc_comma <- which(df$U_VERSION=="")[c(TRUE, FALSE)]
+    loc_comma <- which(df$U_VERSION=="")
     n_last <- ncol(df)
     df[loc_comma, loc_var:(n_last-1)] <- df[loc_comma, (loc_var+1):n_last]
-    df <- df %>%
-      filter(!grepl("\\D", get(main_var)),
-             get(main_var)!="")
+    if (!num) {
+      df <- df %>% filter(get(main_var)!="")
+    } else {
+      df <- df %>% filter(!grepl("\\D", get(main_var)), get(main_var)!="")
+    }
     return(df)
   }
 }
 
-account_info <- fix_comma(account_info)
-address_info <- fix_comma(address_info)
-bill_info <- fix_comma(bill_info)
+account_info <- fix_comma(account_info, "ACCOUNT_NO")
+account_info <- account_info %>% filter(floor(log10(as.numeric(ACCOUNT_NO)))+1==10)
+address_info <- fix_comma(address_info, "LOCATION_NO")
+address_info <- address_info %>% filter(floor(log10(as.numeric(LOCATION_NO)))+1==10)
+bill_info <- fix_comma(bill_info, "ACCOUNT_NO")
+bill_info <- bill_info %>% filter(floor(log10(as.numeric(ACCOUNT_NO)))+1==10)
 location_relation <- fix_comma(location_relation, "LOCATION_NO")
-financial_assist <- fix_comma(financial_assist)
-cutoff_info <- fix_comma(cutoff_info)
-reconnect_info <- fix_comma(reconnect_info)
-payment_arrangement <- payment_arrangement %>% filter(U_VERSION!="")
+location_relation <- location_relation %>% filter(floor(log10(as.numeric(LOCATION_NO)))+1==10)
+financial_assist <- fix_comma(financial_assist, "ACCOUNT_NO")
+cutoff_info <- fix_comma(cutoff_info, "ACCOUNT_NO")
+reconnect_info <- fix_comma(reconnect_info, "ACCOUNT_NO")
+payment_arrangement <- fix_comma(payment_arrangement, "SS_ACCOUNT_NO")
+payment_arrangement <- payment_arrangement %>% filter(floor(log10(as.numeric(SS_ACCOUNT_NO)))+1==10)
 payment_arrangement_info <- payment_arrangement_info %>% filter(U_VERSION!="")
-code_info <- fix_comma(code_info)
-financial_info <- fix_comma(financial_info)
-usage_info <- fix_comma(usage_info)
+code_info <- fix_comma(code_info, "ITEM_TP")
+financial_info <- fix_comma(financial_info, "SS_ACCOUNT_NO")
+usage_info <- fix_comma(usage_info, "ACCOUNT_NO")
 
 
 # Save ####
