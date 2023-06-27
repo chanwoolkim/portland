@@ -70,7 +70,9 @@ delinquency_status <- rbind(no_plan_bill, plan_bill) %>%
 
 # Payment arrangement amount
 payment_arrange_amount <- payment_arrangement_info %>%
-  mutate(amount_paid=AMOUNT_DUE-OUTSTANDING_AMT) %>%
+  mutate(AMOUNT_DUE=as.numeric(AMOUNT_DUE),
+         OUTSTANDING_AMT=as.numeric(OUTSTANDING_AMT),
+         amount_paid=AMOUNT_DUE-OUTSTANDING_AMT) %>%
   group_by(PAY_ARRANGEMENT_REF) %>%
   summarise(amount_due=sum(AMOUNT_DUE, na.rm=TRUE),
             amount_paid=sum(amount_paid, na.rm=TRUE),
