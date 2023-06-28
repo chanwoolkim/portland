@@ -29,7 +29,7 @@ financial_info <- financial_info %>%
   filter(!is.na(ACCOUNT_NO),
          !is.na(BILL_RUN_DT)) %>%
   pivot_wider(id_cols=c(ACCOUNT_NO, BILL_RUN_DT),
-              values_from=ADJUSTED_ITEM_AMT,
+              values_from=ADJUSTED_BILL_AMT,
               names_from=ITEM_SUMMARY) %>%
   rename(bill_sewer_cons=SEWER,
          bill_water_cons=WATER,

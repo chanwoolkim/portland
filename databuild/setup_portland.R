@@ -106,13 +106,22 @@ payment_arrangement_info <- read.table(file=paste0(data_dir, "/CO00210T.txt"),
                                        sep=",", quote="", comment.char="",
                                        fill=TRUE, header=TRUE, stringsAsFactors=FALSE)
 
-usage_info <- read.csv(unz(paste0(data_dir, "/servus_largefiles.zip"),
-                           "UM00262T.txt"),
-                       sep=",", quote="", comment.char="",
-                       fill=TRUE, header=TRUE, row.names=NULL, stringsAsFactors=FALSE)
+usage_df_load <- function(filename) {
+  df <- read.table(unz(paste0(data_dir, "/servus_largefiles.zip"),
+                       paste0(filename, ".txt")),
+                   sep=",", quote="", comment.char="",
+                   fill=TRUE, header=TRUE, row.names=NULL, stringsAsFactors=FALSE)
+  
+  colnames(df) <- colnames(df)[2:ncol(df)]
+  df <- df[1:(ncol(df)-1)]
+  return(df)
+}
 
-colnames(usage_info) <- colnames(usage_info)[2:ncol(usage_info)]
-usage_info <- usage_info[1:(ncol(usage_info)-1)]
+usage_info <- rbind(usage_df_load("um00262t_01012019-12312019"),
+                    usage_df_load("um00262t_01012020-12312020"),
+                    usage_df_load("um00262t_01012021-12312021"),
+                    usage_df_load("um00262t_01012022-12312022"),
+                    usage_df_load("um00262t_01012023-06272023"))
 
 code_info <- read.table(file=paste0(data_dir, "/AR50100C_FINAL.txt"),
                         sep=",", quote="", comment.char="",
