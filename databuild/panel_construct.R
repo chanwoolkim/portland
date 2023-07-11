@@ -107,7 +107,8 @@ portland_panel <- rbind(portland_panel_sub, portland_panel, portland_panel_na) %
          bill_before_assistance=BILLED_AMT_BEFORE_DIS,
          discount_assistance=LINC_DISCOUNT_AMT,
          crisis_voucher_amount=CRISIS_VOUCHER_AMT) %>%
-  select(-SOURCE_CD, -account)
+  select(-account) %>%
+  unique()
 
 # Save the dataset
 save(portland_panel,
