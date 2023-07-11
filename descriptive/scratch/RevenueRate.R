@@ -4,6 +4,9 @@
 library(zoo)
 library(data.table)
 library(ggplot2)
+#library(gplot)
+library(lfe)
+library(plyr)
 
 rm(list=ls())
 start_time <- Sys.time()
@@ -26,11 +29,47 @@ output_dir <- paste0(code_dir, "/output")
 #---------+---------+---------+---------+---------+---------+
 na.replace = function(v,value=0) { v[is.na(v)] = value; v }
 
+summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
+                      conf.interval=.95, .drop=TRUE) {
+  # New version of length which can handle NA's: if na.rm==T, don't count them
+  length2 <- function (x, na.rm=TRUE) {
+    if (na.rm) sum(!is.na(x))
+    else       length(x)
+  }
+  # Summary. For each group's data frame, return vector with N, mean, and sd
+  datac <- ddply(data, groupvars, .drop=.drop,
+                 .fun = function(xx, col) {
+                   c(N    = length2(xx[[col]], na.rm=TRUE),
+                     mean = mean   (xx[[col]], na.rm=TRUE),
+                     sd   = sd     (xx[[col]], na.rm=TRUE)
+                   )
+                 },
+                 measurevar
+  )
+  # Rename "mean" column    
+  datac <- rename(datac, c("mean" = measurevar))
+  datac$se <- datac$sd / sqrt(datac$N)  # Calculate standard error of the mean
+  # Confidence interval multiplier for standard error
+  # Calculate t-statistic for confidence interval: 
+  # e.g., if conf.interval is .95, use .975 (above/below), and use df=N-1
+  ciMult <- qt(conf.interval/2 + .5, datac$N-1)
+  datac$ci <- datac$se * ciMult
+  return(datac)
+}
+
+copy.table <- function(obj, size = 4096) {
+  clip <- paste('clipboard-', size, sep = '')
+  f <- file(description = clip, open = 'w')
+  write.table(obj, f, row.names = FALSE, sep = '\t')
+  close(f)  
+}
+
 
 #---------+---------+---------+---------+---------+---------+
 # Load Data
 #---------+---------+---------+---------+---------+---------+
 load(paste0(working_data_dir, "/portland_panel.RData"))
+load(file=paste0(working_data_dir, "/portland_demographics_tract.RData"))
 
 
 #---------+---------+---------+---------+---------+---------+
@@ -63,12 +102,10 @@ dt$water_cons[dt$water_cons>1000] = 1000
 dt$RevRate[dt$RevRate<0] = 0
 dt$RevRate[dt$RevRate>100] = 100
 
+# merge in census tract demographics
+dt <- merge(x=dt,y=portland_demographics_tract_wide, by="tract",all.x=TRUE)
 
-zz = dt$OOP_payments+dt$crisis_voucher_amount+dt$discount_assistance+dt$bill_leaf+dt$bill_donate+dt$unpaid_debt
-
-#---------+---------+---------+---------+---------+---------+
-# Decomposition of total revenue
-#---------+---------+---------+---------+---------+---------+
+# Collapse Data to Quarterly Frequency
 dt1 = dt[,list(Rev=sum(Rev,na.rm=T),
                total_payments=sum(total_payments,na.rm=T),
                OOP_payments=sum(OOP_payments,na.rm=T),
@@ -83,7 +120,9 @@ dt1 = dt[,list(Rev=sum(Rev,na.rm=T),
                bill_leaf=sum(bill_leaf,na.rm=T)), by = date]
 setkeyv(dt1,c("date"))
 
-dt2 = dt1[1:16,]
+# Decompose components of Quarterly Billed Revenue
+dt2 = dt1[1:18,]
+dt2[,period:=1:18]
 scale = 1000000
 dt2[,Rev.scaled:=Rev/scale]
 dt2[,OOP.scaled:=OOP_payments/scale]
@@ -93,8 +132,73 @@ dt2[,accum.OOP_payments:=OOP_payments/scale]
 dt2[,accum.discounts_and_vouchers:=accum.OOP_payments+discounts_and_vouchers/scale]
 dt2[,accum.unpaid_debt:=accum.discounts_and_vouchers+unpaid_debt/scale]
 
+
+# Manually Assemble Prices
+price = cbind(sort(unique(dt$date)),as.matrix(c(rep(4.89,2),rep(5.251,4),rep(5.593,4),rep(6.029,4),rep(6.493,4),6.493*1.07)))
+
+
+#---------+---------+---------+---------+---------+---------+
+# Descriptive Figures
+#---------+---------+---------+---------+---------+---------+
+plotmeans(RevRate ~ date, main="Revenue Rate over Time", data=dt,ylab = "Revenue Rate (%)",n.label=F)
+abline(v=5.8,col="red",lty=2)
+text(x=5.8,y=92.5,"COVID",col="red")
+
+plotmeans((RevRate<100)*100 ~ date, main="Delinquency Rate over Time", data=dt,ylab = "Delinquency Rate (%)",n.label=F)
+abline(v=5.8,col="red",lty=2)
+text(x=5.8,y=92.5,"COVID",col="red")
+
+par(mfrow=c(2,1))
+plotmeans(RevRate ~ tract, main="Heterogeineity in Revenue Rate across tracts (Q1 2019)", data=dt[dt$date=="2019/01"],ylab = "Revenue Rate (%)",n.label=F)
+plotmeans(RevRate ~ tract, main="Heterogeineity in Revenue Rate across tracts (Q1 2023)", data=dt[dt$date=="2023/01"],ylab = "Revenue Rate (%)",n.label=F)
+
+plotmeans(water_cons ~ date, main="Water Usage over Time", data=dt,ylab = "Water Use (CCF)",n.label=F)
+abline(v=5.8,col="red",lty=2)
+text(x=5.8,y=92.5,"COVID",col="red")
+
+
+# for(tt in c(2019,2023)){
+#   datetemp = paste(tt,"/01",sep="")
+#   dtsum = summarySE(dt[dt$date==datetemp],measurevar="RevRate",group = "tract")
+#   ggplot(data=dtsum, aes(x=tract, y=RevRate)) + scale_y_continuous(expand = c(0, 1)) +
+#     geom_errorbar(aes(ymin=RevRate-se, ymax=RevRate+se), colour="black", width=.1) +
+#     geom_point(size=3, shape=21, fill="white") + 
+#     labs(y="Revenue Rate (%)",title="Heterogeineity in Revenue Rate across tracts (,",datetemp,")",sep="") +
+#     theme_bw() + 
+#     theme(axis.text.x=element_blank(),axis.ticks.x=element_blank())
+# }
+
+par(mfrow=c(2,1))
+plotmeans(water_cons ~ tract, main="Heterogeineity in Water Use across tracts", data=dt[dt$date=="2019/01"],ylab = "Water Use (CCF)",n.label=F)
+plotmeans(water_cons ~ tract, main="Heterogeineity in Water Use across tracts", data=dt[dt$date=="2023/01"],ylab = "Water Use (CCF)",n.label=F)
+
+
+
+#---------+---------+---------+---------+---------+---------+
+# FIGURE: Decomposition of total revenue from Q1 2019 to Q2 2023
+#---------+---------+---------+---------+---------+---------+
+trendline = lm(dt2$unpaid_debt~as.matrix(1:nrow(dt2)))
+growth = round((dt2$unpaid_debt[18]-dt2$unpaid_debt[1])/dt2$unpaid_debt[1]*100)
+dt2[,growth:=growth]
+dt2[,debthat:=trendline$coefficients[1]+trendline$coefficients[2]*as.matrix(1:nrow(dt2))]
+ggplot(data=dt2,aes(x=date,y=unpaid_debt,group=1,fill=date)) +
+  geom_col(data=dt2,aes(x=date,y=unpaid_debt,group=1),alpha=.3, show.legend = FALSE) +
+  geom_text(data=dt2,aes(x = date, y = unpaid_debt,label=paste("$",prettyNum(round(dt2$unpaid_debt,2),big.mark = ","),sep="")),colour="black",size=3) +
+  #  geom_abline(slope=trendline$coefficients[2],intercept=trendline$coefficients[1],col="darkred",size=2) +
+  geom_line(data=dt2,aes(x = date, y = debthat),arrow=arrow(length=unit(0.60,"cm")),col="darkred",size=2) +
+  geom_text(data=dt2[9,],aes(x = date, y = debthat*.85),label=paste(growth,"%\ngrowth",sep=""),col="darkred",size=8,angle=50,lineheight=.65) +
+  scale_y_continuous(labels = scales::dollar_format()) +
+  # COVID Timing
+  geom_vline(xintercept=6,col="darkred",linetype="dashed") +
+  geom_text(aes(x = 6,y=-1,label="COVID"),col="darkred",size=5) +
+  labs(x="date (year/quarter)",y="Unpaid Debt",title="Debt Growth") +
+  theme(plot.title = element_text(hjust = 0.5),plot.subtitle = element_text(hjust = 0.5),text = element_text(size=12),axis.text = element_text(size=12),axis.text.x = element_text(size=12,angle=-45,hjust=0),axis.text.y = element_text(size=12))
+
+
+#---------+---------+---------+---------+---------+---------+
+# FIGURE: Decomposition of total revenue from Q1 2019 to Q2 2023
+#---------+---------+---------+---------+---------+---------+
 ggplot(data=dt2,aes(x=date,y=Rev.scaled,group=1)) +
-  #xlim("2018/10","2022/04") +
   geom_path(color = "black", size = 1) + 
   geom_path(aes(x=date,y=accum.OOP_payments), col="blue",size=1) +
   geom_path(aes(x=date,y=accum.discounts_and_vouchers), col="brown",size=1) +
@@ -102,67 +206,87 @@ ggplot(data=dt2,aes(x=date,y=Rev.scaled,group=1)) +
   geom_ribbon(aes(ymin=0,ymax=accum.OOP_payments), fill="blue", alpha=0.5) +
   geom_ribbon(aes(ymin=accum.OOP_payments,ymax=accum.discounts_and_vouchers), fill="brown", alpha=0.5) +
   geom_ribbon(aes(ymin=accum.discounts_and_vouchers,ymax=accum.unpaid_debt), fill="green", alpha=0.5) +
-  #geom_vline(data=dt2[1,],aes(xintercept = date),color="black") +
-  geom_text(data=dt2[1,],aes(x = date, y = OOP.scaled/2,label=paste(round(OOP_payments/Rev*100,2),"%",sep="")),colour="black",size=3) +
-  geom_segment(data=dt2[1,],aes(x = date, y = 0, xend = date, yend = OOP.scaled),
-               arrow = arrow(length = unit(0.03, "npc"), ends = "both")) +
-  geom_text(data=dt2[.N,],aes(x = date, y = OOP.scaled/2,label=paste(round(OOP_payments/Rev*100,2),"%",sep="")),colour="black",size=3) +
-  geom_text(data=dt2[.N,],aes(x = date, y = OOP.scaled+discounts.scaled/2,label=paste(round(discounts_and_vouchers/Rev*100,2),"%",sep="")),colour="black",size=3) +
-  geom_text(data=dt2[.N,],aes(x = date, y = OOP.scaled+discounts.scaled+unpaid.scaled/2,label=paste(round(unpaid_debt/Rev*100,2),"%",sep="")),colour="black",size=3) +
-  geom_segment(data=dt2[.N,],aes(x = date, y = 0, xend = date, yend = OOP.scaled),
-               arrow = arrow(length = unit(0.03, "npc"), ends = "both")) +
+  # breakdown in Q1 2019
+  geom_text(data=dt2[1,],aes(x = date, y = OOP.scaled/2,label=paste("payments:\n",round(OOP_payments/Rev*100,2),"%",sep="")),colour="black",size=6,lineheight=.7,hjust=0) +
+  # breakdown in Q2 2023
+  geom_text(data=dt2[.N,],aes(x = date, y = OOP.scaled/2,label=paste("payments:\n",round(OOP_payments/Rev*100,2),"%",sep="")),colour="black",size=6,lineheight=.7,hjust=1) +
+  geom_text(data=dt2[.N,],aes(x = date, y = OOP.scaled+discounts.scaled/2,label=paste("discounts:\n",round(discounts_and_vouchers/Rev*100,2),"%",sep="")),colour="black",size=6,lineheight=.7,hjust=1) +
+  geom_text(data=dt2[.N,],aes(x = date, y = OOP.scaled+discounts.scaled+unpaid.scaled/2,label=paste("debt:\n",round(unpaid_debt/Rev*100,2),"%",sep="")),colour="black",size=6,lineheight=.7,hjust=1) +
+  # COVID Timing
+  geom_vline(xintercept=6,col="darkred",linetype="dashed") +
+  geom_text(aes(x = 6,y=-1,label="COVID"),col="darkred",size=8) +
   labs(x="date (year/quarter)",y="Revnue ($ millions)",title="Breakdown of Revenue") +
   theme(plot.title = element_text(hjust = 0.5),plot.subtitle = element_text(hjust = 0.5),text = element_text(size=12),axis.text = element_text(size=12),axis.text.x = element_text(size=12,angle=-45,hjust=0),axis.text.y = element_text(size=12))
 
 
 
-#---------+---------+---------+---------+---------+---------+
-# Water Usage vs Revenue Rate in last quarter of 2020
-#---------+---------+---------+---------+---------+---------+
-# Let's look at last quarter of 2020
-dd = data.frame(dt[year(dt$DUE_DT)==2020 & quarter(dt$DUE_DT)==4,])
-dd$water_cons[dd$water_cons>1000] = 1000
-dd$RevRate[dd$RevRate<0] = 0
-dd$RevRate[dd$RevRate>100] = 100
 
-# (1) RevRate vs Water Usage
-zz = hist(dd$RevRate,breaks=9)
-bins = data.frame(RevRate=zz$mids,count=zz$count,weight=zz$count/sum(zz$count))
+#---------+---------+---------+---------+---------+---------+
+# FIGURE: Water Usage vs Revenue Rate in first quarter of 2019 and 2022 
+#---------+---------+---------+---------+---------+---------+
+for(tt in c(2020,2023)){
+  dd = data.frame(dt[year(dt$DUE_DT)==tt & quarter(dt$DUE_DT)==2 & is.na(dt$water_cons)==0,])
+  # Winsorize data above at 99th percentile
+  q99 = quantile(dd$water_cons,prob=.99)
+  dd$water_cons[dd$water_cons>=q99] = q99
+  # drop cases with missing revenue rate (i.e., new accounts)
+  dd=dd[-which(is.na(dd$RevRate)),]
 
-coeff = max(dd$water_cons)
-ggplot(data=dd,aes(x=RevRate,y=water_cons)) +
-  geom_point(color = "#0073D9", size = 1) + 
-  geom_bar(data=bins,aes(x=RevRate,y=weight*coeff), width = 10,stat="identity",col="grey",alpha=.3)+
+  zz = hist(dd$RevRate,breaks=9)
+  bins = data.frame(RevRate=zz$mids,count=zz$count,weight=zz$count/sum(zz$count))
   
-  # Y axis:
-  scale_y_continuous(
-    
-    # first axis
-    name = "water consumption",
-    
-    # second axis
-    sec.axis = sec_axis( trans=~.*.001, name="fraction of consumers")
-  )
-
-
-# (1) Water Usage vs Rev Rate
-zz = hist(dd$water_cons,breaks=c(0,10,20,30,40,50,60,70,80,100,1000))
-bins1 = data.frame(water_cons=zz$mids,count=zz$count,weight=zz$count/sum(zz$count))
-bins1$RevRate = 0
-for(rr in 1:nrow(bins1)){
-  bins1$RevRate[rr] = mean(dd$RevRate[dd$water_cons>zz$breaks[rr] & dd$water_cons<=zz$breaks[rr+1]],na.rm=TRUE)
+  coeff = max(dd$water_cons)
+  ggplot(data=dd,aes(x=RevRate,y=water_cons)) +
+    geom_point(color = "#0073D9", size = 1) + 
+    geom_bar(data=bins,aes(x=RevRate,y=weight*coeff), width = 10,stat="identity",col="green",alpha=.3,fill="green")+
+    stat_smooth(method = "lm",formula = y ~ x,geom = "smooth",col="black",se=TRUE) +
+    labs(x="Revenue Rate (%)",title=paste("Relationship Between Revenue Rate and Water Usage in",tt)) +
+    theme(plot.title = element_text(hjust = 0.5),plot.subtitle = element_text(hjust = 0.5),text = element_text(size=12),axis.text = element_text(size=12),axis.text.x = element_text(size=12,angle=-45,hjust=0),axis.text.y = element_text(size=12)) +
+    theme_dark() +
+    # Y axis:
+    scale_y_continuous(
+      # first axis
+      name = "water consumption (ccf)",
+      # second axis
+      sec.axis = sec_axis( trans=~.*100/coeff, name="Share of consumers (%)")
+    )
+  
 }
-ggplot(data=bins1,aes(x=water_cons,y=RevRate)) +
-  geom_path(color = "#0073D9", size = 1) + 
-  geom_bar(data=bins1,aes(x=water_cons,y=weight*max(dd$RevRate)), width = 10,stat="identity",col="grey",alpha=.3)+
-  
-  # Y axis:
-  scale_y_continuous(
-    
-    # first axis
-    name = "Bill Payment Rate (%)",
-    
-    # second axis
-    sec.axis = sec_axis( trans=~.*.001, name="fraction of consumers")
-  )
+
+
+#---------+---------+---------+---------+---------+---------+
+# Predict Payment Propensity and Water Usage with Census
+#---------+---------+---------+---------+---------+---------+
+Zcols = names(dt)[47:59]
+Y = dt$RevRate[dt$date=="2023/01"]
+Y1 = dt$RevRate[dt$date=="2023/01"]==100
+X = as.matrix(dt[dt$date=="2023/01",Zcols,with=FALSE])
+ind =is.na(Y1) | apply(is.na(X),1,sum)
+Y = Y[ind==0]
+Y1 = Y1[ind==0]
+X = X[ind==0,]
+X1 = dt$tract
+colnames(X) = Zcols
+
+ind = dt$date=="2019/01"
+summary(lm(Y[ind]~X1[ind]))
+summary(lm(Y[ind]~X[ind,]))
+
+ind1 = dt$date=="2023/01"
+summary(lm(Y[ind1]~X[ind1,]))
+summary(lm(Y[ind1]~X1[ind1,]))
+
+
+out=cv.gamlr(X,Y1,family="binomial",nfold=5)
+BIC = (out$gaml$deviance + out$gamlr$df*log(out$gamlr$nobs))[out$seg.min] 
+gm.set = which(coef(out)!=0)
+rownames(coef(out))[gm.set]
+gam.out = glm(Y1~X,gm.set,family='binomial')
+
+
+out1=cv.gamlr(X,Y,family="gaussian",nfold=5)
+BIC1 = (out$gaml$deviance + out$gamlr$df*log(out$gamlr$nobs))[out$seg.min] 
+gm.set1 = which(coef(out1)!=0)
+rownames(coef(out1))[gm.set1]
+
 
