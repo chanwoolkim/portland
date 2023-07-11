@@ -106,6 +106,32 @@ payment_arrangement_info <- read.table(file=paste0(data_dir, "/CO00210T.txt"),
                                        sep=",", quote="", comment.char="",
                                        fill=TRUE, header=TRUE, stringsAsFactors=FALSE)
 
+collection_info <- read.table(file=paste0(data_dir, "/CO00400T_FINAL.txt"),
+                              sep=",", quote="", comment.char="",
+                              fill=TRUE, header=TRUE, stringsAsFactors=FALSE)
+
+collection_info_update <- read.table(file=paste0(data_dir, "/CO00400T 11012022-06222023.txt"),
+                                     sep=",", quote="", comment.char="",
+                                     fill=TRUE, header=TRUE, stringsAsFactors=FALSE)
+
+collection_info_update <- collection_info_update %>%
+  select(-ADD_BY, -CHG_BY)
+
+collection_info <- rbind(collection_info, collection_info_update) %>% distinct()
+
+collection_amount <- read.table(file=paste0(data_dir, "/CO00450T_redacted_FINAL.txt"),
+                                sep=",", quote="", comment.char="",
+                                fill=TRUE, header=TRUE, stringsAsFactors=FALSE)
+
+collection_amount_update <- read.table(file=paste0(data_dir, "/CO00450T 11012022-06222023.txt"),
+                                       sep=",", quote="", comment.char="",
+                                       fill=TRUE, header=TRUE, stringsAsFactors=FALSE)
+
+collection_amount_update <- collection_amount_update %>%
+  select(-PRIMARY_ADDR, -ADD_BY, -CHG_BY)
+
+collection_amount <- rbind(collection_amount, collection_amount_update) %>% distinct()
+
 usage_df_load <- function(filename) {
   df <- read.table(unz(paste0(data_dir, "/servus_largefiles.zip"),
                        paste0(filename, ".txt")),
@@ -161,6 +187,8 @@ reconnect_info <- fix_comma(reconnect_info, "ACCOUNT_NO")
 payment_arrangement <- fix_comma(payment_arrangement, "SS_ACCOUNT_NO")
 payment_arrangement <- payment_arrangement %>% filter(floor(log10(as.numeric(SS_ACCOUNT_NO)))+1==10)
 payment_arrangement_info <- payment_arrangement_info %>% filter(U_VERSION!="")
+collection_info <- fix_comma(collection_info, "SS_ACCOUNT_NO")
+collection_amount <- fix_comma(collection_amount, "SS_ACCOUNT_NO")
 code_info <- fix_comma(code_info, "ITEM_TP")
 financial_info <- fix_comma(financial_info, "SS_ACCOUNT_NO")
 usage_info <- fix_comma(usage_info, "ACCOUNT_NO")
@@ -173,6 +201,7 @@ save(account_info, address_info,
      location_relation, financial_assist,
      cutoff_info, reconnect_info,
      payment_arrangement, payment_arrangement_info,
+     collection_info, collection_amount,
      code_info,
      file=gzfile(paste0(working_data_dir, "/analysis_info.RData.gz")))
 
