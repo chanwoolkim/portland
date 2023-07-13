@@ -7,8 +7,8 @@ usage_info <- usage_info %>%
   summarise(usage_bill_amount=sum(BC_DETAIL_AMT, na.rm=TRUE),
             usage_bill_water_cons=sum(BC_DETAIL_AMT[BILL_PRINT_CD=="WATER"], na.rm=TRUE),
             usage_bill_sewer_cons=sum(BC_DETAIL_AMT[BILL_PRINT_CD=="SEWER"], na.rm=TRUE),
-            water_cons=sum(CONS_LEVEL_AMT[BILL_PRINT_CD=="WATER"], na.rm=TRUE),
-            sewer_cons=sum(CONS_LEVEL_AMT[BILL_PRINT_CD=="SEWER"], na.rm=TRUE)) %>%
+            water_cons=sum(CONS_LEVEL_AMT[REPORT_CONTEXT=="WCONS"], na.rm=TRUE),
+            sewer_cons=sum(CONS_LEVEL_AMT[REPORT_CONTEXT=="SCONS"], na.rm=TRUE)) %>%
   ungroup() %>%
   mutate(BILL_RUN_DT=mdy(BILL_RUN_DT))
 
