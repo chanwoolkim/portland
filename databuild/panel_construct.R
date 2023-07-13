@@ -53,6 +53,42 @@ portland_panel <- portland_panel %>%
                      CRISIS_VOUCHER_AMT),
             by=c("ACCOUNT_NO", "LOCATION_NO", "BILL_RUN_DT"))
 
+# Add in writeoff info
+account_writeoff <- account_info %>%
+  filter(ACCOUNT_STAT=="WRTOF") %>%
+  select(ACCOUNT_NO, LAST_BILL_DT, WRITEOFF_AMT=LAST_BILL_AMT) %>%
+  mutate(LAST_BILL_DT=mdy(LAST_BILL_DT),
+         WRITEOFF_AMT=as.numeric(WRITEOFF_AMT))
+
+portland_panel <- portland_panel %>%
+  left_join(account_writeoff,
+            by=c("ACCOUNT_NO", "BILL_RUN_DT"="LAST_BILL_DT"))
+
+# Add in collection info
+collection_amount <- collection_amount %>%
+  mutate(SS_ACCOUNT_NO=as.character(SS_ACCOUNT_NO),
+         CREATE_DT=mdy(CREATE_DT)) %>%
+  arrange(SS_ACCOUNT_NO, CREATE_DT) %>%
+  group_by(SS_ACCOUNT_NO) %>%
+  mutate(rnum=row_number()) %>%
+  filter(rnum==max(rnum)) %>%
+  ungroup()
+
+portland_final <- portland_panel %>%
+  filter(BILL_TP=="FINAL")
+
+portland_non_final <- portland_panel %>%
+  filter(BILL_TP!="FINAL") %>%
+  mutate(AMT_DUE=NA,
+         ACT_COL_AMT=NA)
+
+portland_final <- portland_final %>%
+  left_join(collection_amount %>%
+              select(SS_ACCOUNT_NO, AMT_DUE, ACT_COL_AMT),
+            by=c("ACCOUNT_NO"="SS_ACCOUNT_NO"))
+
+portland_panel <- rbind(portland_final, portland_non_final)
+
 # Aggregate for monthly payments
 portland_panel_sub <- portland_panel %>%
   filter(SOURCE_CD %in% c("QB1", "QB2", "QB3"))
@@ -106,7 +142,10 @@ portland_panel <- rbind(portland_panel_sub, portland_panel, portland_panel_na) %
          net_after_assistance=NET_BILL_AMT,
          bill_before_assistance=BILLED_AMT_BEFORE_DIS,
          discount_assistance=LINC_DISCOUNT_AMT,
-         crisis_voucher_amount=CRISIS_VOUCHER_AMT) %>%
+         crisis_voucher_amount=CRISIS_VOUCHER_AMT,
+         writeoff_amount=WRITEOFF_AMT,
+         collection_sent_amount=AMT_DUE,
+         collection_collected_amount=ACT_COL_AMT) %>%
   select(-account) %>%
   unique()
 

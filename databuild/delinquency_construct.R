@@ -24,7 +24,7 @@ bill_info_filtered <- bill_info %>%
          !is.na(BILL_RUN_DT),
          !ERROR_YN,
          AUDIT_OR_LIVE=="L",
-         BILL_TP %in% c("REGLR", "MSTMT"),
+         BILL_TP %in% c("REGLR", "MSTMT", "FINAL"),
          SOURCE_CD %in% c("", "QB1", "QB2", "QB3"),
          !CORRECTED_BILL_YN)
 
@@ -42,7 +42,8 @@ no_plan_bill <- bill_info_filtered %>%
          bill_year=year(BILL_RUN_DT)) %>%
   select(ACCOUNT_NO, PERSON_NO, DUE_DT, BILL_RUN_DT,
          bill_year, delinquent, delinquent_amount,
-         PREV_BILL_AMT, TOTAL_PAYMENTS, AR_DUE_BEFORE_BILL, AR_DUE_AFTER_BILL, SOURCE_CD,
+         PREV_BILL_AMT, TOTAL_PAYMENTS, AR_DUE_BEFORE_BILL, AR_DUE_AFTER_BILL,
+         SOURCE_CD, BILL_TP,
          PERIOD_FROM_DT, PERIOD_TO_DT)
 
 # Those on a payment plan
@@ -59,7 +60,8 @@ plan_bill <- bill_info_filtered %>%
          bill_year=year(BILL_RUN_DT)) %>%
   select(ACCOUNT_NO, PERSON_NO, DUE_DT, BILL_RUN_DT,
          bill_year, delinquent, delinquent_amount,
-         PREV_BILL_AMT, TOTAL_PAYMENTS, AR_DUE_BEFORE_BILL, AR_DUE_AFTER_BILL, SOURCE_CD,
+         PREV_BILL_AMT, TOTAL_PAYMENTS, AR_DUE_BEFORE_BILL, AR_DUE_AFTER_BILL,
+         SOURCE_CD, BILL_TP,
          PERIOD_FROM_DT, PERIOD_TO_DT)
 
 delinquency_status <- rbind(no_plan_bill, plan_bill) %>%

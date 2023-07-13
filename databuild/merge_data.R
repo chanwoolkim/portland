@@ -78,7 +78,8 @@ account_info_merge <-
            total_bill_2020+
            total_bill_2021+
            total_bill_2022+
-           total_bill_2023)
+           total_bill_2023) %>%
+  ungroup()
 
 account_info_merge <-
   left_join(account_info_merge,
@@ -131,7 +132,8 @@ account_info_merge <-
          crisis_voucher_2022=
            ifelse(crisis_voucher_2022==0, NA, crisis_voucher_2022),
          crisis_voucher_2023=
-           ifelse(crisis_voucher_2023==0, NA, crisis_voucher_2023))
+           ifelse(crisis_voucher_2023==0, NA, crisis_voucher_2023)) %>%
+  ungroup()
 
 account_info_merge <-
   left_join(account_info_merge,
@@ -170,6 +172,7 @@ account_info_merge <- account_info_merge %>%
 multiple_location <- account_info_merge %>%
   group_by(ACCOUNT_NO) %>%
   summarise(count=n()) %>%
+  ungroup() %>%
   filter(count>1)
 
 account_info_merge <- account_info_merge %>%
