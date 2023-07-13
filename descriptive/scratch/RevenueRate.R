@@ -140,21 +140,21 @@ price = cbind(sort(unique(dt$date)),as.matrix(c(rep(4.89,2),rep(5.251,4),rep(5.5
 #---------+---------+---------+---------+---------+---------+
 # Descriptive Figures
 #---------+---------+---------+---------+---------+---------+
-plotmeans(RevRate ~ date, main="Revenue Rate over Time", data=dt,ylab = "Revenue Rate (%)",n.label=F)
-abline(v=5.8,col="red",lty=2)
-text(x=5.8,y=92.5,"COVID",col="red")
+#plotmeans(RevRate ~ date, main="Revenue Rate over Time", data=dt,ylab = "Revenue Rate (%)",n.label=F)
+#abline(v=5.8,col="red",lty=2)
+#text(x=5.8,y=92.5,"COVID",col="red")
 
-plotmeans((RevRate<100)*100 ~ date, main="Delinquency Rate over Time", data=dt,ylab = "Delinquency Rate (%)",n.label=F)
-abline(v=5.8,col="red",lty=2)
-text(x=5.8,y=92.5,"COVID",col="red")
+#plotmeans((RevRate<100)*100 ~ date, main="Delinquency Rate over Time", data=dt,ylab = "Delinquency Rate (%)",n.label=F)
+#abline(v=5.8,col="red",lty=2)
+#text(x=5.8,y=92.5,"COVID",col="red")
 
-par(mfrow=c(2,1))
-plotmeans(RevRate ~ tract, main="Heterogeineity in Revenue Rate across tracts (Q1 2019)", data=dt[dt$date=="2019/01"],ylab = "Revenue Rate (%)",n.label=F)
-plotmeans(RevRate ~ tract, main="Heterogeineity in Revenue Rate across tracts (Q1 2023)", data=dt[dt$date=="2023/01"],ylab = "Revenue Rate (%)",n.label=F)
+#par(mfrow=c(2,1))
+#plotmeans(RevRate ~ tract, main="Heterogeineity in Revenue Rate across tracts (Q1 2019)", data=dt[dt$date=="2019/01"],ylab = "Revenue Rate (%)",n.label=F)
+#plotmeans(RevRate ~ tract, main="Heterogeineity in Revenue Rate across tracts (Q1 2023)", data=dt[dt$date=="2023/01"],ylab = "Revenue Rate (%)",n.label=F)
 
-plotmeans(water_cons ~ date, main="Water Usage over Time", data=dt,ylab = "Water Use (CCF)",n.label=F)
-abline(v=5.8,col="red",lty=2)
-text(x=5.8,y=92.5,"COVID",col="red")
+#plotmeans(water_cons ~ date, main="Water Usage over Time", data=dt,ylab = "Water Use (CCF)",n.label=F)
+#abline(v=5.8,col="red",lty=2)
+#text(x=5.8,y=92.5,"COVID",col="red")
 
 
 # for(tt in c(2019,2023)){
@@ -168,9 +168,9 @@ text(x=5.8,y=92.5,"COVID",col="red")
 #     theme(axis.text.x=element_blank(),axis.ticks.x=element_blank())
 # }
 
-par(mfrow=c(2,1))
-plotmeans(water_cons ~ tract, main="Heterogeineity in Water Use across tracts", data=dt[dt$date=="2019/01"],ylab = "Water Use (CCF)",n.label=F)
-plotmeans(water_cons ~ tract, main="Heterogeineity in Water Use across tracts", data=dt[dt$date=="2023/01"],ylab = "Water Use (CCF)",n.label=F)
+#par(mfrow=c(2,1))
+#plotmeans(water_cons ~ tract, main="Heterogeineity in Water Use across tracts", data=dt[dt$date=="2019/01"],ylab = "Water Use (CCF)",n.label=F)
+#plotmeans(water_cons ~ tract, main="Heterogeineity in Water Use across tracts", data=dt[dt$date=="2023/01"],ylab = "Water Use (CCF)",n.label=F)
 
 
 
