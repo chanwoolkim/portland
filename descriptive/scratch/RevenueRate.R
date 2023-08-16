@@ -7,6 +7,7 @@ library(ggplot2)
 #library(gplot)
 library(lfe)
 library(plyr)
+library(dplyr)
 
 rm(list=ls())
 start_time <- Sys.time()
@@ -81,6 +82,7 @@ setkeyv(dt,c("ACCOUNT_NO","DUE_DT"))
 # Date variables
 dt[,year:=year(dt$DUE_DT)]
 dt[,quarter:=quarter(dt$DUE_DT)]
+dt$time = (dt$year-min(dt$year))*4 + dt$quarter
 # fix missing
 dt[,discount_assistance:=na.replace(discount_assistance)]
 dt[,crisis_voucher_amount:=na.replace(crisis_voucher_amount)]
@@ -104,6 +106,7 @@ dt$RevRate[dt$RevRate>100] = 100
 
 # merge in census tract demographics
 dt <- merge(x=dt,y=portland_demographics_tract_wide, by="tract",all.x=TRUE)
+
 
 # Collapse Data to Quarterly Frequency
 dt1 = dt[,list(Rev=sum(Rev,na.rm=T),
@@ -131,6 +134,53 @@ dt2[,unpaid.scaled:=unpaid_debt/scale]
 dt2[,accum.OOP_payments:=OOP_payments/scale]
 dt2[,accum.discounts_and_vouchers:=accum.OOP_payments+discounts_and_vouchers/scale]
 dt2[,accum.unpaid_debt:=accum.discounts_and_vouchers+unpaid_debt/scale]
+
+
+# Collapse Data to Tract-Quarterly Frequency
+dt3 = dt[,list(Rev=sum(Rev,na.rm=T),
+               total_payments=sum(total_payments,na.rm=T),
+               OOP_payments=sum(OOP_payments,na.rm=T),
+               leftover_debt=sum(leftover_debt,na.rm=T),
+               bill_penalty=sum(bill_penalty,na.rm=T),
+               bill_donate=sum(bill_donate,na.rm=T),
+               bill_bankrupt=sum(bill_bankrupt,na.rm=T),
+               unpaid_debt=sum(unpaid_debt,na.rm=T),
+               unpaid_debt_bar=mean(unpaid_debt,na.rm=T),
+               crisis_voucher_amount=sum(crisis_voucher_amount,na.rm=T),
+               discount_assistance=sum(discount_assistance,na.rm=T),
+               discounts_and_vouchers=sum(discounts_and_vouchers,na.rm=T),
+               bill_leaf=sum(bill_leaf,na.rm=T),
+               DEM_hh_income = mean(hh_income,na.rm=T),
+               DEM_black = mean(black,na.rm=T),
+               DEM_hispanic = mean(hispanic,na.rm=T),
+               DEM_life_expectancy = mean(life_expectancy,na.rm=T),
+               DEM_hh_poverty= mean(hh_poverty,na.rm=T),
+               DEM_food_stamp = mean(food_stamp,na.rm=T),
+               DEM_unemployment = mean(unemployment,na.rm=T),
+               time = mean(time)), by = c("date","tract")]
+setkeyv(dt3,c("tract","date"))
+
+# Create Black and Hispanic quantile groups
+dt3$BlackQuantileGroup = (dt3 %>% mutate(BlackQuantileGroup = ntile(DEM_black, 4)))$BlackQuantileGroup
+dt3$HispanicQuantileGroup = (dt3 %>% mutate(HispanicQuantileGroup = ntile(DEM_hispanic, 4)))$HispanicQuantileGroup
+dt3$PovQuantileGroup = (dt3 %>% mutate(PovQuantileGroup = ntile(DEM_hh_poverty, 4)))$PovQuantileGroup
+dt3$IncomeQuantileGroup = (dt3 %>% mutate(IncomeQuantileGroup = ntile(DEM_hh_income, 4)))$IncomeQuantileGroup
+
+# merge quantile groups back with raw data
+dt = merge(x=dt3[,c("tract","date","BlackQuantileGroup","HispanicQuantileGroup","PovQuantileGroup","IncomeQuantileGroup")],y=dt, by=c("tract","date"))
+
+
+
+# Demographic profile of tracts in Q1 2023
+Demog = dt[,list(DEM_black = mean(black,na.rm=T),
+                 DEM_hh_income = mean(hh_income,na.rm=T),
+                 DEM_hispanic = mean(hispanic,na.rm=T),
+                 DEM_life_expectancy = mean(life_expectancy,na.rm=T),
+                 DEM_hh_poverty= mean(hh_poverty,na.rm=T),
+                 DEM_food_stamp = mean(food_stamp,na.rm=T),
+                 DEM_unemployment = mean(unemployment,na.rm=T),
+                 DEM_time = mean(time)), by = tract]
+
 
 
 # Manually Assemble Prices
@@ -181,9 +231,9 @@ trendline = lm(dt2$unpaid_debt~as.matrix(1:nrow(dt2)))
 growth = round((dt2$unpaid_debt[18]-dt2$unpaid_debt[1])/dt2$unpaid_debt[1]*100)
 dt2[,growth:=growth]
 dt2[,debthat:=trendline$coefficients[1]+trendline$coefficients[2]*as.matrix(1:nrow(dt2))]
-ggplot(data=dt2,aes(x=date,y=unpaid_debt,group=1,fill=date)) +
+g=ggplot(data=dt2,aes(x=date,y=unpaid_debt,group=1,fill=date)) +
   geom_col(data=dt2,aes(x=date,y=unpaid_debt,group=1),alpha=.3, show.legend = FALSE) +
-  geom_text(data=dt2,aes(x = date, y = unpaid_debt,label=paste("$",prettyNum(round(dt2$unpaid_debt,2),big.mark = ","),sep="")),colour="black",size=3) +
+  geom_text(data=dt2,aes(x = date, y = unpaid_debt,label=paste("$",prettyNum(round(dt2$unpaid_debt,2),big.mark = ","),sep="")),colour="black",size=2) +
   #  geom_abline(slope=trendline$coefficients[2],intercept=trendline$coefficients[1],col="darkred",size=2) +
   geom_line(data=dt2,aes(x = date, y = debthat),arrow=arrow(length=unit(0.60,"cm")),col="darkred",size=2) +
   geom_text(data=dt2[9,],aes(x = date, y = debthat*.85),label=paste(growth,"%\ngrowth",sep=""),col="darkred",size=8,angle=50,lineheight=.65) +
@@ -193,12 +243,17 @@ ggplot(data=dt2,aes(x=date,y=unpaid_debt,group=1,fill=date)) +
   geom_text(aes(x = 6,y=-1,label="COVID"),col="darkred",size=5) +
   labs(x="date (year/quarter)",y="Unpaid Debt",title="Debt Growth") +
   theme(plot.title = element_text(hjust = 0.5),plot.subtitle = element_text(hjust = 0.5),text = element_text(size=12),axis.text = element_text(size=12),axis.text.x = element_text(size=12,angle=-45,hjust=0),axis.text.y = element_text(size=12))
+print(g)
+jpeg("output/figures/debtgrowth.jpeg",res=300,width=6,height=6,units="in")
+g
+dev.off()
 
 
 #---------+---------+---------+---------+---------+---------+
 # FIGURE: Decomposition of total revenue from Q1 2019 to Q2 2023
 #---------+---------+---------+---------+---------+---------+
-ggplot(data=dt2,aes(x=date,y=Rev.scaled,group=1)) +
+
+g1=ggplot(data=dt2,aes(x=date,y=Rev.scaled,group=1)) +
   geom_path(color = "black", size = 1) + 
   geom_path(aes(x=date,y=accum.OOP_payments), col="blue",size=1) +
   geom_path(aes(x=date,y=accum.discounts_and_vouchers), col="brown",size=1) +
@@ -207,16 +262,20 @@ ggplot(data=dt2,aes(x=date,y=Rev.scaled,group=1)) +
   geom_ribbon(aes(ymin=accum.OOP_payments,ymax=accum.discounts_and_vouchers), fill="brown", alpha=0.5) +
   geom_ribbon(aes(ymin=accum.discounts_and_vouchers,ymax=accum.unpaid_debt), fill="green", alpha=0.5) +
   # breakdown in Q1 2019
-  geom_text(data=dt2[1,],aes(x = date, y = OOP.scaled/2,label=paste("payments:\n",round(OOP_payments/Rev*100,2),"%",sep="")),colour="black",size=6,lineheight=.7,hjust=0) +
+  geom_text(data=dt2[1,],aes(x = date, y = OOP.scaled/2,label=paste("payments:\n",round(OOP_payments/Rev*100,2),"%",sep="")),colour="black",size=3,lineheight=.7,hjust=0) +
   # breakdown in Q2 2023
-  geom_text(data=dt2[.N,],aes(x = date, y = OOP.scaled/2,label=paste("payments:\n",round(OOP_payments/Rev*100,2),"%",sep="")),colour="black",size=6,lineheight=.7,hjust=1) +
-  geom_text(data=dt2[.N,],aes(x = date, y = OOP.scaled+discounts.scaled/2,label=paste("discounts:\n",round(discounts_and_vouchers/Rev*100,2),"%",sep="")),colour="black",size=6,lineheight=.7,hjust=1) +
-  geom_text(data=dt2[.N,],aes(x = date, y = OOP.scaled+discounts.scaled+unpaid.scaled/2,label=paste("debt:\n",round(unpaid_debt/Rev*100,2),"%",sep="")),colour="black",size=6,lineheight=.7,hjust=1) +
+  geom_text(data=dt2[.N,],aes(x = date, y = OOP.scaled/2,label=paste("payments:\n",round(OOP_payments/Rev*100,2),"%",sep="")),colour="black",size=3,lineheight=.7,hjust=1) +
+  geom_text(data=dt2[.N,],aes(x = date, y = OOP.scaled+discounts.scaled/2,label=paste("discounts:\n",round(discounts_and_vouchers/Rev*100,2),"%",sep="")),colour="black",size=3,lineheight=.7,hjust=1) +
+  geom_text(data=dt2[.N,],aes(x = date, y = OOP.scaled+discounts.scaled+unpaid.scaled/2,label=paste("debt:\n",round(unpaid_debt/Rev*100,2),"%",sep="")),colour="black",size=3,lineheight=.7,hjust=1) +
   # COVID Timing
   geom_vline(xintercept=6,col="darkred",linetype="dashed") +
-  geom_text(aes(x = 6,y=-1,label="COVID"),col="darkred",size=8) +
+  geom_text(aes(x = 6,y=-1,label="COVID"),col="darkred",size=5) +
   labs(x="date (year/quarter)",y="Revnue ($ millions)",title="Breakdown of Revenue") +
   theme(plot.title = element_text(hjust = 0.5),plot.subtitle = element_text(hjust = 0.5),text = element_text(size=12),axis.text = element_text(size=12),axis.text.x = element_text(size=12,angle=-45,hjust=0),axis.text.y = element_text(size=12))
+print(g1)
+jpeg("output/figures/RevRatedecomp.jpeg",res=300,width=6,height=6,units="in")
+g1
+dev.off()
 
 
 

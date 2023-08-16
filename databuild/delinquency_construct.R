@@ -4,9 +4,11 @@ load(file=paste0(working_data_dir, "/account_info_analysis.RData"))
 load(file=paste0(working_data_dir, "/financial_assistance_info.RData"))
 
 # Only consider single family
-account_info_subset <- account_info_merge %>%
+account_info_subset <- account_info %>%
+  mutate(ACCOUNT_CLASS_DFLT=trimws(ACCOUNT_CLASS_DFLT)) %>%
   filter(ACCOUNT_CLASS_DFLT %in% c("RESSF", "ASST")) %>%
   select(ACCOUNT_NO) %>%
+  unique() %>%
   mutate(account=TRUE)
 
 # Average payment arrangement amount

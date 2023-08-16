@@ -8,7 +8,7 @@ if (Sys.info()[4]!="jdube01"){
   library(tidycensus)
   library(tidygeocoder)
   library(tidyverse)
-  library(textables)
+  library(textab)
 }
 
 library(dplyr)
