@@ -119,7 +119,7 @@ collection_info_update <- collection_info_update %>%
 
 collection_info <- rbind(collection_info, collection_info_update) %>% distinct()
 
-collection_amount <- read.table(file=paste0(data_dir, "/CO00450T_redacted_FINAL.txt"),
+collection_amount <- read.table(file=paste0(data_dir, "/CO00450T_redacted_FINAL.TXT"),
                                 sep=",", quote="", comment.char="",
                                 fill=TRUE, header=TRUE, stringsAsFactors=FALSE)
 
@@ -194,6 +194,15 @@ financial_info <- fix_comma(financial_info, "SS_ACCOUNT_NO")
 usage_info <- fix_comma(usage_info, "ACCOUNT_NO")
 
 
+# Location info from financial info ####
+location_financial <- financial_info %>%
+  transmute(ACCOUNT_NO=SS_ACCOUNT_NO,
+            DUE_DT=mdy(DUE_DT),
+            LOCATION_NO=as.numeric(LOCATION_NO)) %>%
+  filter(!is.na(LOCATION_NO)) %>%
+  unique()
+
+
 # Save ####
 save(account_info, address_info, 
      geocode_address_info_subset,
@@ -207,3 +216,6 @@ save(account_info, address_info,
 
 save(financial_info, usage_info,
      file=gzfile(paste0(working_data_dir, "/analysis_info_large.RData.gz")))
+
+save(location_financial,
+     file=paste0(working_data_dir, "/location_financial.RData"))
