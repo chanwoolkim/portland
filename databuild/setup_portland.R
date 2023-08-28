@@ -197,11 +197,17 @@ usage_info <- fix_comma(usage_info, "ACCOUNT_NO")
 # Location info from financial info ####
 location_financial <- financial_info %>%
   transmute(ACCOUNT_NO=SS_ACCOUNT_NO,
+            BILL_DT=mdy(SS_BILL_DT),
             DUE_DT=mdy(DUE_DT),
             LOCATION_NO=as.numeric(LOCATION_NO)) %>%
   filter(!is.na(LOCATION_NO)) %>%
-  unique()
-
+  arrange(ACCOUNT_NO, BILL_DT, DUE_DT, LOCATION_NO) %>%
+  unique() %>%
+  group_by(ACCOUNT_NO, BILL_DT) %>%
+  mutate(row=row_number()) %>%
+  ungroup() %>%
+  filter(row==1) %>%
+  select(-row)
 
 # Save ####
 save(account_info, address_info, 
