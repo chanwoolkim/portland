@@ -4,12 +4,17 @@ load(file=paste0(working_data_dir, "/account_info_analysis.RData"))
 load(file=paste0(working_data_dir, "/financial_assistance_info.RData"))
 load(file=paste0(working_data_dir, "/usage_financial.RData"))
 load(file=paste0(working_data_dir, "/delinquency_status.RData"))
+load(file=paste0(working_data_dir, "/location_financial.RData"))
 
 # Create final panel dataset ####
 # Add in usage and detailed bill info
 portland_panel <- delinquency_status %>%
   left_join(usage_info, by=c("ACCOUNT_NO", "BILL_RUN_DT")) %>%
   left_join(financial_info, by=c("ACCOUNT_NO", "BILL_RUN_DT"))
+
+# First merge in location from financial info
+portland_panel <- portland_panel %>%
+  left_join(location_financial, by=c("ACCOUNT_NO", "DUE_DT", "BILL_RUN_DT"="BILL_DT"))
 
 # Get location relation
 location_relation <- location_relation %>%
@@ -29,10 +34,24 @@ portland_panel <- portland_panel %>%
                      ACTUAL_END_DT,
                      OCCUPANCY),
             by=c("ACCOUNT_NO"="ACCT_TO_FRC_CONNECT",
-                 "PERSON_NO")) %>%
+                 "PERSON_NO"))
+
+# Prioritise location relation
+portland_panel_loc_rel <- portland_panel %>%
+  filter(!is.na(LOCATION_NO.y)) %>%
+  mutate(LOCATION_NO=LOCATION_NO.y) %>%
   filter(!is.na(EFFECTIVE_DT),
          !is.na(ACTUAL_END_DT)) %>%
   filter(between(BILL_RUN_DT, EFFECTIVE_DT, ACTUAL_END_DT))
+
+portland_panel_fin <- portland_panel %>%
+  filter(is.na(LOCATION_NO.y)) %>%
+  mutate(LOCATION_NO=LOCATION_NO.x)
+
+portland_panel <- rbind(portland_panel_loc_rel, portland_panel_fin) %>%
+  select(-LOCATION_NO.x, -LOCATION_NO.y) %>%
+  filter(!is.na(LOCATION_NO)) %>%
+  distinct(ACCOUNT_NO, PERSON_NO, DUE_DT, BILL_RUN_DT, .keep_all=TRUE)
 
 portland_panel <- portland_panel %>%
   left_join(geocode_address_info_subset %>%

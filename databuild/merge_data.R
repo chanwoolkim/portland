@@ -7,6 +7,7 @@ load(file=paste0(working_data_dir, "/financial_assistance_info.RData"))
 load(file=paste0(working_data_dir, "/geocode_address_info_subset.RData"))
 load(file=paste0(working_data_dir, "/acs_tract.RData"))
 load(file=paste0(working_data_dir, "/portland_demographics_tract.RData"))
+load(file=paste0(working_data_dir, "/location_financial.RData"))
 
 tracts <- read.csv(file=paste0(auxiliary_data_dir, "/portland_geoid.csv"),
                    header=TRUE)$GEOID
@@ -25,6 +26,20 @@ account_info_merge <-
                      PERSON_NO),
             by=c("ACCOUNT_NO"="ACCT_TO_FRC_CONNECT",
                  "PERSON_NO"))
+
+account_info_merge <-
+  left_join(account_info_merge %>%
+              mutate(LAST_BILL_DT=mdy(LAST_BILL_DT)),
+            location_financial %>%
+              select(ACCOUNT_NO, LOCATION_NO, BILL_DT),
+            by=c("ACCOUNT_NO", "LAST_BILL_DT"="BILL_DT"))
+
+# Prioritise location relation
+account_info_merge <- account_info_merge %>%
+  mutate(LOCATION_NO=ifelse(is.na(LOCATION_NO.x),
+                            LOCATION_NO.y,
+                            LOCATION_NO.x)) %>%
+  select(-LOCATION_NO.x, -LOCATION_NO.y)
 
 account_info_merge <-
   left_join(account_info_merge,
