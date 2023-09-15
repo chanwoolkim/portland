@@ -75,23 +75,42 @@ payment_arrange_by_year <- payment_arrangement %>%
 
 # Financial assistance by LINC tier ####
 financial_assist_detail <- list.files(path=data_dir,
-                                      pattern="Linc Data - *",
+                                      pattern="Linc Data - .*\\.csv",
                                       full.names=TRUE) %>% 
-  lapply(read_csv) %>%
+  lapply(read_csv, col_types=cols(.default="c")) %>%
   bind_rows
+
+financial_assist_xlsx <- list.files(path=data_dir,
+                                    pattern="Linc Data - .*\\.xlsx",
+                                    full.names=TRUE) %>% 
+  lapply(read_xlsx) %>%
+  bind_rows
+
+financial_assist_detail <- rbind(financial_assist_detail %>%
+                                   select(-ACCOUNT_NO) %>%
+                                   mutate(BILL_DT=mdy(BILL_DT)),
+                                 financial_assist_xlsx %>%
+                                   mutate(FINAL="N",
+                                          BILL_DT=ymd(BILL_DT)))
 
 financial_assist_detail <- financial_assist_detail %>%
   filter(FINAL=="N") %>%
-  mutate(bill_year=year(mdy(BILL_DT)))
+  mutate(bill_year=year(BILL_DT)) %>%
+  mutate_at(c("LOCATION_NO",
+              "NET_BILL_AMT", "BILLED_AMT_BEFORE_DIS", "LINC_DISCOUNT_AMT",
+              "WATER_CONS", "SEWER_CONS",
+              "PENALTY_FEES", "PENALTY_FEES_REVERSED",
+              "CRISIS_VOUCHER_AMT"),
+            as.numeric)
 
 linc_info <- financial_assist_detail %>%
   mutate(tier=as.numeric(gsub("Tier", "", LINC_TIER_TYPE))) %>%
-  group_by(ACCOUNT_NO, bill_year) %>%
+  group_by(LOCATION_NO, bill_year) %>%
   summarise(tier=max(tier),
             discount_amount=(-1)*sum(LINC_DISCOUNT_AMT, na.rm=TRUE),
             crisis_voucher=(-1)*sum(CRISIS_VOUCHER_AMT, na.rm=TRUE)) %>%
   ungroup() %>%
-  pivot_wider(id_cols=ACCOUNT_NO, 
+  pivot_wider(id_cols=LOCATION_NO, 
               names_from=bill_year, 
               values_from=c("tier",
                             "discount_amount",

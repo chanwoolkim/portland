@@ -119,18 +119,22 @@ account_info_merge <-
 account_info_merge <-
   left_join(account_info_merge,
             linc_info %>%
-              mutate(ACCOUNT_NO=as.character(ACCOUNT_NO)),
-            by="ACCOUNT_NO") %>%
+              mutate(LOCATION_NO=as.character(LOCATION_NO)),
+            by="LOCATION_NO") %>%
   rowwise() %>% 
-  mutate(discount_amount=sum(discount_amount_2020,
+  mutate(discount_amount=sum(discount_amount_2019,
+                             discount_amount_2020,
                              discount_amount_2021,
                              discount_amount_2022,
                              discount_amount_2023, na.rm=TRUE),
-         crisis_voucher=sum(crisis_voucher_2020,
+         crisis_voucher=sum(crisis_voucher_2019,
+                            crisis_voucher_2020,
                             crisis_voucher_2021,
                             crisis_voucher_2022,
                             crisis_voucher_2023, na.rm=TRUE),
          discount_amount=ifelse(discount_amount==0, NA, discount_amount),
+         discount_amount_2019=
+           ifelse(discount_amount_2019==0, NA, discount_amount_2019),
          discount_amount_2020=
            ifelse(discount_amount_2020==0, NA, discount_amount_2020),
          discount_amount_2021=
@@ -140,6 +144,8 @@ account_info_merge <-
          discount_amount_2023=
            ifelse(discount_amount_2023==0, NA, discount_amount_2023),
          crisis_voucher=ifelse(crisis_voucher==0, NA, crisis_voucher),
+         crisis_voucher_2019=
+           ifelse(crisis_voucher_2019==0, NA, crisis_voucher_2019),
          crisis_voucher_2020=
            ifelse(crisis_voucher_2020==0, NA, crisis_voucher_2020),
          crisis_voucher_2021=

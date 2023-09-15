@@ -77,26 +77,31 @@ load(file=paste0(working_data_dir, "/portland_demographics_tract.RData"))
 # Create Data for Analysis
 #---------+---------+---------+---------+---------+---------+
 dt = data.table(portland_panel)
-setkeyv(dt,c("ACCOUNT_NO","DUE_DT"))
+setkeyv(dt,c("ACCOUNT_NO","BILL_RUN_DT"))
 
 # Date variables
-dt[,year:=year(dt$DUE_DT)]
-dt[,quarter:=quarter(dt$DUE_DT)]
+dt[,year:=year(dt$BILL_RUN_DT)]
+dt[,quarter:=quarter(dt$BILL_RUN_DT)]
 dt$time = (dt$year-min(dt$year))*4 + dt$quarter
 # fix missing
 dt[,discount_assistance:=na.replace(discount_assistance)]
 dt[,crisis_voucher_amount:=na.replace(crisis_voucher_amount)]
+dt[,writeoff_amount:=na.replace(writeoff_amount)]
+dt[,final_writeoff:=na.replace(final_writeoff)]
+dt[,collection_sent_amount:=na.replace(collection_sent_amount)]
+dt[,collection_collected_amount:=na.replace(collection_collected_amount)]
 # payment and revenue variables
 dt[,total_payments:=-total_payments]
 dt[,crisis_voucher_amount:=-crisis_voucher_amount]
 dt[,discount_assistance:=-discount_assistance]
 dt[,OOP_payments:=total_payments-crisis_voucher_amount]
-dt[,Rev:=total_payments+leftover_debt]
+dt[,Rev:=total_payments+leftover_debt+final_writeoff+writeoff_amount]
 dt[,RevRate:=total_payments/Rev*100]
 dt[,discounts_and_vouchers:=discount_assistance+crisis_voucher_amount]
-dt[,unpaid_debt:=leftover_debt-discounts_and_vouchers]
-dt[,date:=paste(format(DUE_DT, "%Y"),  # Convert dates to quarterly
-                sprintf("%02i", (as.POSIXlt(DUE_DT)$mon) %/% 3L + 1L), 
+dt[,unpaid_debt:=leftover_debt-discounts_and_vouchers+
+     final_writeoff+writeoff_amount-collection_collected_amount]
+dt[,date:=paste(format(BILL_RUN_DT, "%Y"),  # Convert dates to quarterly
+                sprintf("%02i", (as.POSIXlt(BILL_RUN_DT)$mon) %/% 3L + 1L), 
                 sep = "/")]
 
 # censor unreliable outliers
@@ -184,7 +189,7 @@ Demog = dt[,list(DEM_black = mean(black,na.rm=T),
 
 
 # Manually Assemble Prices
-price = cbind(sort(unique(dt$date)),as.matrix(c(rep(4.89,2),rep(5.251,4),rep(5.593,4),rep(6.029,4),rep(6.493,4),6.493*1.07)))
+price = cbind(sort(unique(dt$date)),as.matrix(c(rep(4.89,2),rep(5.251,4),rep(5.593,4),rep(6.029,4),rep(6.493,4),rep(7.006, 4))))
 
 
 #---------+---------+---------+---------+---------+---------+
@@ -284,7 +289,7 @@ dev.off()
 # FIGURE: Water Usage vs Revenue Rate in first quarter of 2019 and 2022 
 #---------+---------+---------+---------+---------+---------+
 for(tt in c(2020,2023)){
-  dd = data.frame(dt[year(dt$DUE_DT)==tt & quarter(dt$DUE_DT)==2 & is.na(dt$water_cons)==0,])
+  dd = data.frame(dt[year(dt$BILL_RUN_DT)==tt & quarter(dt$BILL_RUN_DT)==2 & is.na(dt$water_cons)==0,])
   # Winsorize data above at 99th percentile
   q99 = quantile(dd$water_cons,prob=.99)
   dd$water_cons[dd$water_cons>=q99] = q99
@@ -316,7 +321,7 @@ for(tt in c(2020,2023)){
 #---------+---------+---------+---------+---------+---------+
 # Predict Payment Propensity and Water Usage with Census
 #---------+---------+---------+---------+---------+---------+
-Zcols = names(dt)[47:59]
+Zcols = names(dt)[57:69]
 Y = dt$RevRate[dt$date=="2023/01"]
 Y1 = dt$RevRate[dt$date=="2023/01"]==100
 X = as.matrix(dt[dt$date=="2023/01",Zcols,with=FALSE])
@@ -324,7 +329,7 @@ ind =is.na(Y1) | apply(is.na(X),1,sum)
 Y = Y[ind==0]
 Y1 = Y1[ind==0]
 X = X[ind==0,]
-X1 = dt$tract
+X1 = as.numeric(dt$tract)
 colnames(X) = Zcols
 
 ind = dt$date=="2019/01"

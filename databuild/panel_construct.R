@@ -50,7 +50,10 @@ portland_panel_fin <- portland_panel %>%
 
 portland_panel <- rbind(portland_panel_loc_rel, portland_panel_fin) %>%
   select(-LOCATION_NO.x, -LOCATION_NO.y) %>%
+  group_by(ACCOUNT_NO, PERSON_NO) %>%
+  fill(LOCATION_NO, .direction="downup") %>%
   filter(!is.na(LOCATION_NO)) %>%
+  ungroup() %>%
   distinct(ACCOUNT_NO, PERSON_NO, DUE_DT, BILL_RUN_DT, .keep_all=TRUE)
 
 portland_panel <- portland_panel %>%
@@ -61,16 +64,12 @@ portland_panel <- portland_panel %>%
   select(-EFFECTIVE_DT, -ACTUAL_END_DT)
 
 # Get financial assistance info
-financial_assist_detail <- financial_assist_detail %>%
-  mutate(ACCOUNT_NO=as.character(ACCOUNT_NO),
-         BILL_RUN_DT=mdy(BILL_DT))
-
 portland_panel <- portland_panel %>%
   left_join(financial_assist_detail %>%
-              select(ACCOUNT_NO, LOCATION_NO, BILL_RUN_DT,
+              select(LOCATION_NO, BILL_DT,
                      NET_BILL_AMT, BILLED_AMT_BEFORE_DIS, LINC_DISCOUNT_AMT,
                      CRISIS_VOUCHER_AMT),
-            by=c("ACCOUNT_NO", "LOCATION_NO", "BILL_RUN_DT"))
+            by=c("LOCATION_NO", "BILL_RUN_DT"="BILL_DT"))
 
 # Add in writeoff info
 account_writeoff <- account_info %>%
@@ -167,6 +166,15 @@ portland_panel <- rbind(portland_panel_sub, portland_panel, portland_panel_na) %
          collection_collected_amount=ACT_COL_AMT) %>%
   select(-account) %>%
   unique()
+
+# Add in final bill as debt, 2018-12-31 as 2019-01-01
+portland_panel <- portland_panel %>%
+  mutate(final_writeoff=ifelse(BILL_TP=="FINAL",
+                               current_bill-leftover_debt,
+                               0),
+         BILL_RUN_DT=if_else(BILL_RUN_DT==mdy("12/31/2018"),
+                             mdy("1/1/2019"),
+                             BILL_RUN_DT))
 
 # Save the dataset
 save(portland_panel,
