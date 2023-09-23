@@ -87,11 +87,9 @@ financial_assist_xlsx <- list.files(path=data_dir,
   bind_rows
 
 financial_assist_detail <- rbind(financial_assist_detail %>%
-                                   select(-ACCOUNT_NO) %>%
                                    mutate(BILL_DT=mdy(BILL_DT)),
                                  financial_assist_xlsx %>%
-                                   mutate(FINAL="N",
-                                          BILL_DT=ymd(BILL_DT)))
+                                   mutate(BILL_DT=ymd(BILL_DT)))
 
 financial_assist_detail <- financial_assist_detail %>%
   filter(FINAL=="N") %>%

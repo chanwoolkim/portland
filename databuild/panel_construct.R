@@ -12,7 +12,24 @@ portland_panel <- delinquency_status %>%
   left_join(usage_info, by=c("ACCOUNT_NO", "BILL_RUN_DT")) %>%
   left_join(financial_info, by=c("ACCOUNT_NO", "BILL_RUN_DT"))
 
-# First merge in location from financial info
+# Define fixed and variable prices
+portland_panel <- portland_panel %>%
+  mutate(price_water=water_var_price,
+         price_sewer=rowSums(select(., c("sewer_var_price",       
+                                         "sewer_phs_var_price",
+                                         "bod_var_price",
+                                         "tss_var_price",
+                                         "cleanriver_var_price",
+                                         "clnrvrcrd_var_price")),
+                             na.rm=TRUE),
+         price_fixed=rowSums(select(., contains("_fixed")), na.rm=TRUE),
+         price_donation=swr_donation_price,
+         price_discount=rowSums(select(., starts_with("linc_")), na.rm=TRUE)) %>%
+  select(!ends_with("_price")) %>%
+  mutate_at(vars(starts_with("price_")),
+            ~ ifelse(.==0 | is.nan(.), NA, .))
+
+# Merge in location from financial info
 portland_panel <- portland_panel %>%
   left_join(location_financial, by=c("ACCOUNT_NO", "DUE_DT", "BILL_RUN_DT"="BILL_DT"))
 
