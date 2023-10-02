@@ -87,12 +87,12 @@ financial_assist_xlsx <- list.files(path=data_dir,
   bind_rows
 
 financial_assist_detail <- rbind(financial_assist_detail %>%
-                                   mutate(BILL_DT=mdy(BILL_DT)),
+                                   mutate(BILL_DT=mdy(BILL_DT)) %>%
+                                   select(-FINAL, -ACCOUNT_NO),
                                  financial_assist_xlsx %>%
                                    mutate(BILL_DT=ymd(BILL_DT)))
 
 financial_assist_detail <- financial_assist_detail %>%
-  filter(FINAL=="N") %>%
   mutate(bill_year=year(BILL_DT)) %>%
   mutate_at(c("LOCATION_NO",
               "NET_BILL_AMT", "BILLED_AMT_BEFORE_DIS", "LINC_DISCOUNT_AMT",

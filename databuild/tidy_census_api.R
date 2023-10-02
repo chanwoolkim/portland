@@ -120,7 +120,7 @@ demographic_stats <- c("DP02_0001", "DP02_0016", "DP03_0009",
                        "DP03_0063", "DP03_0065", "DP03_0069", "DP03_0071",
                        "DP03_0072", "DP03_0073", "DP03_0074",
                        "DP03_0119",
-                       "DP05_0071", "DP05_0078")
+                       "DP05_0071", "DP05_0078", "DP05_0077")
 
 portland_demographics_tract <- portland_acs_tract %>% 
   filter(group %in% demographic_stats)
@@ -130,12 +130,12 @@ metric_lookup <- data.table(
           "DP03_0063", "DP03_0065", "DP03_0069", "DP03_0071",
           "DP03_0072", "DP03_0073", "DP03_0074",
           "DP03_0119",
-          "DP05_0071", "DP05_0078"),
+          "DP05_0071", "DP05_0078", "DP05_0077"),
   metric_name=c("total_hh", "hh_size", "unemployment",
                 "hh_income", "hh_earnings", "hh_retirement", "hh_ssi",
                 "cash_assistance", "hh_cash_assistance", "food_stamp",
                 "hh_poverty",
-                "hispanic", "black"))
+                "hispanic", "black", "white"))
 
 portland_demographics_tract <- portland_demographics_tract %>% 
   select(-c(category, metric_group, metric))
@@ -176,7 +176,8 @@ portland_demographics_tract_wide <- portland_demographics_tract_wide %>%
             food_stamp=sum(food_stamp),
             hh_poverty=mean(hh_poverty),
             hispanic=mean(hispanic),
-            black=mean(black)) %>%
+            black=mean(black),
+            white=mean(white)) %>%
   ungroup()
 
 # Add in life expectancy info
