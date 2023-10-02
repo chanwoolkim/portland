@@ -37,9 +37,9 @@ usage_info <- usage_info %>%
                                                WEIGHT[REPORT_CONTEXT=="CLNRVRCRD"], na.rm=TRUE),
             swr_donation_price=weighted.mean(BC_DETAIL_RATE[REPORT_CONTEXT=="SWR DONAT"],
                                               WEIGHT[REPORT_CONTEXT=="SWR DONAT"], na.rm=TRUE),
-            linc_sewer_fixed_price=weighted.mean(BC_DETAIL_RATE[REPORT_CONTEXT=="LINCSEWER"],
+            linc_sewer_price=weighted.mean(BC_DETAIL_RATE[REPORT_CONTEXT=="LINCSEWER"],
                                              WEIGHT[REPORT_CONTEXT=="LINCSEWER"], na.rm=TRUE),
-            linc_water_fixed_price=weighted.mean(BC_DETAIL_RATE[REPORT_CONTEXT=="LINC"],
+            linc_water_price=weighted.mean(BC_DETAIL_RATE[REPORT_CONTEXT=="LINC"],
                                              WEIGHT[REPORT_CONTEXT=="LINC"], na.rm=TRUE)) %>%
   ungroup() %>%
   mutate(BILL_RUN_DT=mdy(BILL_RUN_DT))
