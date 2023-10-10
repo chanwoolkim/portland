@@ -329,7 +329,30 @@ delinquency_status_sub <- delinquency_status_sub %>%
 
 delinquency_status <- rbind(delinquency_status_sub,
                             delinquency_status_rest,
-                            delinquency_status_none)
+                            delinquency_status_none) %>%
+  unique()
+
+# Flag first bill and resumption
+delinquency_status <- delinquency_status %>%
+  arrange(ACCOUNT_NO, BILL_RUN_DT) %>%
+  group_by(ACCOUNT_NO) %>%
+  mutate(rnum=row_number(),
+         lag_final=lag(BILL_TP)) %>%
+  ungroup() %>%
+  mutate(BILL_TP=ifelse(BILL_TP!="FINAL" &
+                          PREV_BILL_AMT<=0 & TOTAL_PAYMENTS>=0 &
+                          rnum==1,
+                        "FIRST",
+                        BILL_TP)) %>%
+  select(-rnum)
+
+delinquency_status <- delinquency_status %>%
+  mutate(lag_PREV_BILL=lag(PREV_BILL_AMT)) %>%
+  filter(!(lag_PREV_BILL==PREV_BILL_AMT & lag_final=="FINAL" & BILL_TP=="FINAL")) %>%
+  mutate(BILL_TP=ifelse(BILL_TP!="FINAL" & lag_final=="FINAL" & !is.na(lag_final),
+                        "RESUME",
+                        BILL_TP)) %>%
+  select(-lag_final, -lag_PREV_BILL)
 
 # Save the dataset
 save(delinquency_status,

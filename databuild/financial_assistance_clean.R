@@ -87,13 +87,18 @@ financial_assist_xlsx <- list.files(path=data_dir,
   bind_rows
 
 financial_assist_detail <- rbind(financial_assist_detail %>%
-                                   mutate(BILL_DT=mdy(BILL_DT)) %>%
-                                   select(-FINAL, -ACCOUNT_NO),
+                                   mutate(BILL_DT=mdy(BILL_DT),
+                                          LINC_EFFECTIVE_DATE=mdy(LINC_EFFECTIVE_DATE),
+                                          LINC_EXPIRY_DATE=mdy(LINC_EXPIRY_DATE)),
                                  financial_assist_xlsx %>%
-                                   mutate(BILL_DT=ymd(BILL_DT)))
+                                   mutate(BILL_DT=ymd(BILL_DT),
+                                          LINC_EFFECTIVE_DATE=ymd(LINC_EFFECTIVE_DATE),
+                                          LINC_EXPIRY_DATE=ymd(LINC_EXPIRY_DATE)))
 
 financial_assist_detail <- financial_assist_detail %>%
-  mutate(bill_year=year(BILL_DT)) %>%
+  mutate(bill_year=year(BILL_DT),
+         linc_expiry_year=year(LINC_EXPIRY_DATE),
+         senior_disabilities=linc_expiry_year>2050) %>%
   mutate_at(c("LOCATION_NO",
               "NET_BILL_AMT", "BILLED_AMT_BEFORE_DIS", "LINC_DISCOUNT_AMT",
               "WATER_CONS", "SEWER_CONS",

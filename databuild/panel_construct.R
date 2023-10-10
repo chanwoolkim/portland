@@ -6,11 +6,14 @@ load(file=paste0(working_data_dir, "/usage_financial.RData"))
 load(file=paste0(working_data_dir, "/delinquency_status.RData"))
 load(file=paste0(working_data_dir, "/location_financial.RData"))
 
+
 # Create final panel dataset ####
 # Add in usage and detailed bill info
 portland_panel <- delinquency_status %>%
+  select(-delinquent, -delinquent_amount) %>%
   left_join(usage_info, by=c("ACCOUNT_NO", "BILL_RUN_DT")) %>%
-  left_join(financial_info, by=c("ACCOUNT_NO", "BILL_RUN_DT"))
+  left_join(financial_info, by=c("ACCOUNT_NO", "BILL_RUN_DT")) %>%
+  select(-bill_water_cons, -bill_sewer_cons, -bill_payment)
 
 # Define fixed and variable prices
 portland_panel <- portland_panel %>%
@@ -59,7 +62,7 @@ portland_panel_loc_rel <- portland_panel %>%
   mutate(LOCATION_NO=LOCATION_NO.y) %>%
   filter(!is.na(EFFECTIVE_DT),
          !is.na(ACTUAL_END_DT)) %>%
-  filter(between(BILL_RUN_DT, EFFECTIVE_DT, ACTUAL_END_DT))
+  filter(between(BILL_RUN_DT, EFFECTIVE_DT, ACTUAL_END_DT) | BILL_TP=="FINAL")
 
 portland_panel_fin <- portland_panel %>%
   filter(is.na(LOCATION_NO.y)) %>%
@@ -83,9 +86,9 @@ portland_panel <- portland_panel %>%
 # Get financial assistance info
 portland_panel <- portland_panel %>%
   left_join(financial_assist_detail %>%
-              select(LOCATION_NO, BILL_DT,
+              select(LOCATION_NO, BILL_DT, LINC_TIER_TYPE,
                      NET_BILL_AMT, BILLED_AMT_BEFORE_DIS, LINC_DISCOUNT_AMT,
-                     CRISIS_VOUCHER_AMT),
+                     CRISIS_VOUCHER_AMT, senior_disabilities),
             by=c("LOCATION_NO", "BILL_RUN_DT"="BILL_DT"))
 
 # Add in writeoff info
