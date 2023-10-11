@@ -19,7 +19,7 @@ address_info <- read.table(file=paste0(data_dir, "/UM00100M.txt"),
 
 account_info <- read.table(file=paste0(data_dir, "/UM00200M.txt"),
                            sep=",", quote="", comment.char="",
-                           fill=TRUE, header=TRUE, stringsAsFactors=FALSE)
+                           fill=TRUE, header=TRUE, row.names=NULL, stringsAsFactors=FALSE)
 
 colnames(account_info) <- colnames(account_info)[2:ncol(account_info)]
 account_info <- account_info[1:(ncol(account_info)-1)]
