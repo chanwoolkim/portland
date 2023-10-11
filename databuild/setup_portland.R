@@ -21,6 +21,9 @@ account_info <- read.table(file=paste0(data_dir, "/UM00200M.txt"),
                            sep=",", quote="", comment.char="",
                            fill=TRUE, header=TRUE, stringsAsFactors=FALSE)
 
+colnames(account_info) <- colnames(account_info)[2:ncol(account_info)]
+account_info <- account_info[1:(ncol(account_info)-1)]
+
 financial_info <- read.table(unz(paste0(data_dir, "/servus_largefiles.zip"),
                                  "AR00200t_FINAL.txt"),
                              sep=",", quote="", comment.char="",
