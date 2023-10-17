@@ -25,6 +25,7 @@ library(RColorBrewer)
 library(scales)
 library(stringr)
 library(tidyr)
+library(zoo)
 
 colours_set <- brewer.pal("Set2", n=8)
 

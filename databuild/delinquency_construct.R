@@ -5,9 +5,14 @@ load(file=paste0(working_data_dir, "/financial_assistance_info.RData"))
 
 # Only consider single family
 account_info_subset <- account_info %>%
-  mutate(ACCOUNT_CLASS_DFLT=trimws(ACCOUNT_CLASS_DFLT)) %>%
+  mutate(ACCOUNT_CLASS_DFLT=trimws(ACCOUNT_CLASS_DFLT),
+         CYCLE_CD=as.numeric(trimws(CYCLE_CD)),
+         CYCLE_CD=case_when(CYCLE_CD %in% 1:64 ~ "QUARTER",
+                            CYCLE_CD %in% 65:85 ~ "MONTH",
+                            CYCLE_CD %in% 90:92 ~ "BIMONTH",
+                            .default="NOINFO")) %>%
   filter(ACCOUNT_CLASS_DFLT %in% c("RESSF", "ASST")) %>%
-  select(ACCOUNT_NO) %>%
+  select(ACCOUNT_NO, CYCLE_CD) %>%
   unique() %>%
   mutate(account=TRUE)
 
@@ -16,7 +21,8 @@ bill_info <- bill_info %>%
   mutate(PERIOD_FROM_DT=mdy(PERIOD_FROM_DT),
          PERIOD_TO_DT=mdy(PERIOD_TO_DT),
          DUE_DT=mdy(DUE_DT),
-         BILL_RUN_DT=mdy(BILL_RUN_DT))
+         BILL_RUN_DT=mdy(BILL_RUN_DT),
+         OFF_CYCLE_YN=OFF_CYCLE_YN=="TRUE")
 
 bill_info_filtered <- bill_info %>% 
   filter(!CANCELED_BILL_YN,
@@ -45,7 +51,7 @@ no_plan_bill <- bill_info_filtered %>%
   select(ACCOUNT_NO, PERSON_NO, DUE_DT, BILL_RUN_DT,
          bill_year, delinquent, delinquent_amount,
          PREV_BILL_AMT, TOTAL_PAYMENTS, AR_DUE_BEFORE_BILL, AR_DUE_AFTER_BILL,
-         SOURCE_CD, BILL_TP,
+         SOURCE_CD, BILL_TP, OFF_CYCLE_YN,
          PERIOD_FROM_DT, PERIOD_TO_DT)
 
 # Those on a payment plan
@@ -63,14 +69,14 @@ plan_bill <- bill_info_filtered %>%
   select(ACCOUNT_NO, PERSON_NO, DUE_DT, BILL_RUN_DT,
          bill_year, delinquent, delinquent_amount,
          PREV_BILL_AMT, TOTAL_PAYMENTS, AR_DUE_BEFORE_BILL, AR_DUE_AFTER_BILL,
-         SOURCE_CD, BILL_TP,
+         SOURCE_CD, BILL_TP, OFF_CYCLE_YN,
          PERIOD_FROM_DT, PERIOD_TO_DT)
 
 delinquency_status <- rbind(no_plan_bill, plan_bill) %>%
   mutate(ACCOUNT_NO=as.character(ACCOUNT_NO)) %>%
   left_join(account_info_subset,
             by="ACCOUNT_NO") %>%
-  filter(account)
+  filter(account, CYCLE_CD!="NOINFO")
 
 # Payment arrangement amount
 payment_arrange_amount <- payment_arrangement_info %>%
@@ -339,20 +345,14 @@ delinquency_status <- delinquency_status %>%
   mutate(rnum=row_number(),
          lag_final=lag(BILL_TP)) %>%
   ungroup() %>%
-  mutate(BILL_TP=ifelse(BILL_TP!="FINAL" &
-                          PREV_BILL_AMT<=0 & TOTAL_PAYMENTS>=0 &
-                          rnum==1,
-                        "FIRST",
-                        BILL_TP)) %>%
-  select(-rnum)
-
-delinquency_status <- delinquency_status %>%
   mutate(lag_PREV_BILL=lag(PREV_BILL_AMT)) %>%
   filter(!(lag_PREV_BILL==PREV_BILL_AMT & lag_final=="FINAL" & BILL_TP=="FINAL")) %>%
-  mutate(BILL_TP=ifelse(BILL_TP!="FINAL" & lag_final=="FINAL" & !is.na(lag_final),
-                        "RESUME",
-                        BILL_TP)) %>%
-  select(-lag_final, -lag_PREV_BILL)
+  mutate(BILL_TP=
+           case_when(BILL_TP!="FINAL" & PREV_BILL_AMT<=0 & TOTAL_PAYMENTS>=0 & rnum==1 ~ "FIRST",
+                     BILL_TP!="FINAL" & lag_final=="FINAL" & !is.na(lag_final) ~ "RESUME",
+                     BILL_TP!="FINAL" & PREV_BILL_AMT<=0 & TOTAL_PAYMENTS<0 & rnum==1 ~ "RESUME",
+                     .default=BILL_TP)) %>%
+  select(-lag_final, -lag_PREV_BILL, -rnum)
 
 # Save the dataset
 save(delinquency_status,

@@ -2,6 +2,12 @@
 load(file=paste0(working_data_dir, "/portland_panel.RData"))
 
 
+# Precleaning ####
+portland_panel <- portland_panel %>%
+  mutate_if(is.numeric, ~replace_na(., 0)) %>%
+  replace_na(list(senior_disabilities=FALSE))
+
+
 # Aggregate monthly payments ####
 # First aggregate consumption and relevant bills and assistances
 portland_panel_sub <- portland_panel %>%
@@ -42,43 +48,54 @@ portland_panel_month <- portland_panel %>%
 portland_panel_estimation <- rbind(portland_panel_quarter, portland_panel_month) %>%
   arrange(ACCOUNT_NO, BILL_RUN_DT)
 
-rm(portland_panel, portland_panel_sub, portland_panel_quarter, portland_panel_month)
+rm(portland_panel_quarter, portland_panel_month, portland_panel_sub)
 
 # Replace values as needed
 portland_panel_estimation <- portland_panel_estimation %>%
   group_by(ACCOUNT_NO) %>%
   mutate(source_num=substr(SOURCE_CD, 3, 3) %>% as.numeric(),
-         source_lag=lag(source_num),
-         source_lead=lead(source_num),
-         final_lag=lag(BILL_TP),
-         final_lead=lead(BILL_TP),
-         across(everything(),
+         across(c("source_num", "BILL_TP", "previous_bill", "total_payments"),
                 .fns=list(lag=~lag(.))),
-         across(everything(),
-                .fns=list(lead=~lead(.)))) %>%
+         across(c("source_num", "BILL_TP", "previous_bill", "total_payments"),
+                .fns=list(lag_lag=~lag(., n=2))),
+         across(c("source_num", "BILL_TP", "previous_bill"),
+                .fns=list(lead=~lead(.))),
+         across(c("source_num", "BILL_TP", "previous_bill"),
+                .fns=list(lead_lead=~lead(., n=2)))) %>%
   ungroup()
 
-portland_patnel_estimation <- portland_panel_estimation %>%
-  mutate(across(c("DUE_DT"),
-                .fns=~case_when(SOURCE_CD=="QB2" & final_lead=="FINAL" ~
-                                  get(paste0(deparse(substitute(.x)), "_lead")),
-                                SOURCE_CD=="QB2" & source_lead==3 ~
-                                  get(paste0(deparse(substitute(.x)), "_lead_lead")),
-                                SOURCE_CD=="QB1" & final_lead=="FINAL" ~
-                                  get(paste0(deparse(substitute(.x)), "_lead")),
-                                .default=.x)),
-         across(c("current_bill"),
-                .fns=~case_when(SOURCE_CD=="QB1" & final_lead=="FINAL" ~
-                                  get(paste0(deparse(substitute(.x)), "_lead")),
-                                .default=.x)),
-         across(c("current_bill"),
-                .fns=~case_when(SOURCE_CD=="QB1" & final_lead=="FINAL" ~
-                                  get(paste0(deparse(substitute(.x)), "_lead")),
-                                .default=.x)))
+portland_panel_estimation <- portland_panel_estimation %>%
+  mutate(previous_bill=
+           case_when(BILL_TP=="FINAL" & source_num_lag==2 ~
+                       previous_bill_lag,
+                     source_num_lag_lag==2 ~
+                       previous_bill_lag_lag,
+                     .default=previous_bill),
+         total_payments=
+           case_when(BILL_TP=="FINAL" & source_num_lag==2 ~
+                       total_payments+total_payments_lag,
+                     source_num_lag_lag==2 ~
+                       total_payments+total_payments_lag+total_payments_lag_lag,
+                     .default=total_payments),
+         leftover_debt=case_when(BILL_TP=="FINAL" & source_num_lag==2 ~
+                                   previous_bill-total_payments,
+                                 .default=leftover_debt),
+         current_bill=case_when(source_num==1 & source_num_lead==2 ~
+                                  previous_bill_lead,
+                                source_num==1 & BILL_TP_lead=="FINAL" ~
+                                  previous_bill_lead,
+                                .default=current_bill))
 
 portland_panel_estimation <- portland_panel_estimation %>%
-  filter() %>%
-  select(-contains("lead"))
+  filter(BILL_TP!="MSTMT" |
+           (BILL_TP=="MSTMT" & is.na(BILL_TP_lead)) |
+           (source_num==2 & source_num_lead==3 & is.na(BILL_TP_lead_lead))) %>%
+  mutate(agg=case_when((BILL_TP=="FINAL" & source_num_lag==2) |
+                         (source_num_lag==3 & source_num_lag_lag==2) ~ "AGG",
+                       (BILL_TP=="MSTMT" & is.na(BILL_TP_lead)) |
+                         (BILL_TP=="MSTMT" & is.na(BILL_TP_lead_lead)) ~ "CHOP",
+                       .default="")) %>%
+  select(-contains("lag"), -contains("lead"), -source_num)
 
 # Save the dataset
 save(portland_panel_estimation,
