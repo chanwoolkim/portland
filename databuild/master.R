@@ -36,9 +36,9 @@ source(paste0(code_dir, "/utilities/preliminary.R"))
 #---------+---------+---------+---------+---------+---------+
 # Run Databuild Scripts
 #---------+---------+---------+---------+---------+---------+
+source(paste0(code_dir, "/databuild/setup_portland.R"))
 source(paste0(code_dir, "/databuild/geocoding_api.R"))
 source(paste0(code_dir, "/databuild/tidy_census_api.R"))
-source(paste0(code_dir, "/databuild/setup_portland.R"))
 source(paste0(code_dir, "/databuild/delinquency_measure.R"))
 source(paste0(code_dir, "/databuild/financial_assistance_clean.R"))
 source(paste0(code_dir, "/databuild/merge_data.R"))

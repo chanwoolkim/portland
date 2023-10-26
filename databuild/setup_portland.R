@@ -213,8 +213,10 @@ location_financial <- financial_info %>%
   select(-row)
 
 # Save ####
+save(address_info,
+     file=paste0(working_data_dir, "/address_info.RData"))
+
 save(account_info, address_info, 
-     geocode_address_info_subset,
      bill_info, 
      location_relation, financial_assist,
      cutoff_info, reconnect_info,

@@ -95,7 +95,8 @@ portland_panel_estimation <- portland_panel_estimation %>%
                        (BILL_TP=="MSTMT" & is.na(BILL_TP_lead)) |
                          (BILL_TP=="MSTMT" & is.na(BILL_TP_lead_lead)) ~ "CHOP",
                        .default="")) %>%
-  select(-contains("lag"), -contains("lead"), -source_num)
+  select(-contains("lag"), -contains("lead"), -source_num) %>%
+  mutate(delinquent=leftover_debt>0)
 
 # Save the dataset
 save(portland_panel_estimation,
