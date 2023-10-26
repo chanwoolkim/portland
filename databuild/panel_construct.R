@@ -5,6 +5,7 @@ load(file=paste0(working_data_dir, "/financial_assistance_info.RData"))
 load(file=paste0(working_data_dir, "/usage_financial.RData"))
 load(file=paste0(working_data_dir, "/delinquency_status.RData"))
 load(file=paste0(working_data_dir, "/location_financial.RData"))
+load(file=paste0(working_data_dir, "/geocode_address_info_subset.RData"))
 
 
 # Create final panel dataset ####

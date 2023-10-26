@@ -1,9 +1,8 @@
 # Geocode API
 
 # Load address info from Portland data
-address_info <- read.table(file=paste0(data_dir, "/UM00100M_FINAL.txt"),
-                           sep=",", quote="", comment.char="",
-                           fill=TRUE, header=TRUE, stringsAsFactors=FALSE)
+load(file=paste0(working_data_dir, "/address_info.RData"))
+
 
 address_info <- address_info %>%
   mutate(address=paste(
