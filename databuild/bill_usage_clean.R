@@ -92,7 +92,7 @@ financial_info <- financial_info %>%
          bill_leaf=LRF)
 
 save(financial_info_leftover,
-     file=paste0(working_data_dir, "/financial_info_leftover.RData"))
+     file=gzfile(paste0(working_data_dir, "/financial_info_leftover.RData.gz")))
 
 save(usage_info, financial_info,
-     file=paste0(working_data_dir, "/usage_financial.RData"))
+     file=gzfile(paste0(working_data_dir, "/usage_financial.RData.gz")))
