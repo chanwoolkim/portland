@@ -1,5 +1,9 @@
+# LOAD DATA
+load(file=paste0(working_data_dir, "/analysis_info.RData.gz"))
 load(file=paste0(working_data_dir, "/analysis_info_large.RData.gz"))
 
+
+# Clean usage info ####
 usage_info <- usage_info %>%
   mutate(BILL_PRINT_CD=trimws(BILL_PRINT_CD),
          REPORT_CONTEXT=trimws(REPORT_CONTEXT),
@@ -18,38 +22,54 @@ usage_info <- usage_info %>%
             sewer_var_price=weighted.mean(BC_DETAIL_RATE[REPORT_CONTEXT=="SCONS"],
                                           WEIGHT[REPORT_CONTEXT=="SCONS"], na.rm=TRUE),
             water_fixed_price=weighted.mean(BC_DETAIL_RATE[REPORT_CONTEXT=="WBASE"],
-                                          WEIGHT[REPORT_CONTEXT=="WBASE"], na.rm=TRUE),
+                                            WEIGHT[REPORT_CONTEXT=="WBASE"], na.rm=TRUE),
             sewer_fixed_price=weighted.mean(BC_DETAIL_RATE[REPORT_CONTEXT=="SBASE"],
-                                          WEIGHT[REPORT_CONTEXT=="SBASE"], na.rm=TRUE),
+                                            WEIGHT[REPORT_CONTEXT=="SBASE"], na.rm=TRUE),
             storm_fixed_price=weighted.mean(BC_DETAIL_RATE[REPORT_CONTEXT=="STORM"],
                                             WEIGHT[REPORT_CONTEXT=="STORM"], na.rm=TRUE),
             storm_phs_fixed_price=weighted.mean(BC_DETAIL_RATE[REPORT_CONTEXT=="STORM_PHS"],
-                                            WEIGHT[REPORT_CONTEXT=="STORM_PHS"], na.rm=TRUE),
+                                                WEIGHT[REPORT_CONTEXT=="STORM_PHS"], na.rm=TRUE),
             sewer_phs_var_price=weighted.mean(BC_DETAIL_RATE[REPORT_CONTEXT=="SEWER_PHS"],
-                                            WEIGHT[REPORT_CONTEXT=="SEWER_PHS"], na.rm=TRUE),
+                                              WEIGHT[REPORT_CONTEXT=="SEWER_PHS"], na.rm=TRUE),
             bod_var_price=weighted.mean(BC_DETAIL_RATE[REPORT_CONTEXT=="BOD"],
-                                                WEIGHT[REPORT_CONTEXT=="BOD"], na.rm=TRUE),
+                                        WEIGHT[REPORT_CONTEXT=="BOD"], na.rm=TRUE),
             tss_var_price=weighted.mean(BC_DETAIL_RATE[REPORT_CONTEXT=="TSS"],
                                         WEIGHT[REPORT_CONTEXT=="TSS"], na.rm=TRUE),
             cleanriver_var_price=weighted.mean(BC_DETAIL_RATE[REPORT_CONTEXT=="CLEANRIVER"],
-                                        WEIGHT[REPORT_CONTEXT=="CLEANRIVER"], na.rm=TRUE),
+                                               WEIGHT[REPORT_CONTEXT=="CLEANRIVER"], na.rm=TRUE),
             clnrvrcrd_var_price=weighted.mean(BC_DETAIL_RATE[REPORT_CONTEXT=="CLNRVRCRD"],
-                                               WEIGHT[REPORT_CONTEXT=="CLNRVRCRD"], na.rm=TRUE),
+                                              WEIGHT[REPORT_CONTEXT=="CLNRVRCRD"], na.rm=TRUE),
             swr_donation_price=weighted.mean(BC_DETAIL_RATE[REPORT_CONTEXT=="SWR DONAT"],
-                                              WEIGHT[REPORT_CONTEXT=="SWR DONAT"], na.rm=TRUE),
+                                             WEIGHT[REPORT_CONTEXT=="SWR DONAT"], na.rm=TRUE),
             linc_sewer_price=weighted.mean(BC_DETAIL_RATE[REPORT_CONTEXT=="LINCSEWER"],
-                                             WEIGHT[REPORT_CONTEXT=="LINCSEWER"], na.rm=TRUE),
+                                           WEIGHT[REPORT_CONTEXT=="LINCSEWER"], na.rm=TRUE),
             linc_water_price=weighted.mean(BC_DETAIL_RATE[REPORT_CONTEXT=="LINC"],
-                                             WEIGHT[REPORT_CONTEXT=="LINC"], na.rm=TRUE)) %>%
+                                           WEIGHT[REPORT_CONTEXT=="LINC"], na.rm=TRUE)) %>%
   ungroup() %>%
   mutate(BILL_RUN_DT=mdy(BILL_RUN_DT))
 
+
+# Clean financial info ####
 financial_info <- financial_info %>%
   mutate(ACCOUNT_NO=as.character(SS_ACCOUNT_NO),
          SS_BILL_DT=as.character(SS_BILL_DT),
          ITEM_SUMMARY=trimws(as.character(ITEM_SUMMARY)),
          ITEM_AMT=as.numeric(as.character(ITEM_AMT)),
-         ADJUSTED_ITEM_AMT=as.numeric(as.character(ADJUSTED_ITEM_AMT))) %>%
+         ADJUSTED_ITEM_AMT=as.numeric(as.character(ADJUSTED_ITEM_AMT)))
+
+# Save bills not in bill_info (to identify payment to final bill)
+bill_info <- bill_info %>%
+  select(ACCOUNT_NO, BILL_RUN_DT) %>%
+  unique() %>%
+  mutate(match=TRUE)
+
+financial_info_leftover <- financial_info %>%
+  left_join(bill_info,
+            by=c("ACCOUNT_NO", "SS_BILL_DT"="BILL_RUN_DT")) %>%
+  filter(is.na(match)) %>%
+  select(-match)
+
+financial_info <- financial_info %>%
   group_by(ACCOUNT_NO, SS_BILL_DT, ITEM_SUMMARY) %>%
   summarise(BILL_AMT=sum(ITEM_AMT, na.rm=TRUE),
             ADJUSTED_BILL_AMT=sum(ADJUSTED_ITEM_AMT, na.rm=TRUE)) %>%
@@ -70,6 +90,9 @@ financial_info <- financial_info %>%
          bill_donate=DONAT,
          bill_bankrupt=BNKRP,
          bill_leaf=LRF)
+
+save(financial_info_leftover,
+     file=paste0(working_data_dir, "/financial_info_leftover.RData"))
 
 save(usage_info, financial_info,
      file=paste0(working_data_dir, "/usage_financial.RData"))
