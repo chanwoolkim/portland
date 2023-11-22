@@ -1,9 +1,9 @@
-\documentclass[12pt]{article}
+\documentclass[11pt]{article}
 
 \usepackage{amssymb, amsmath, amsfonts}
 \usepackage{eurosym, geometry, ulem, float}
 \usepackage{booktabs, graphicx, tikz, caption, color, setspace, sectsty, comment, footmisc}
-\usepackage{natbib, pdflscape, subcaption, array, hyperref}
+\usepackage{natbib, pdflscape, subcaption, array, hyperref, tablefootnote}
 
 \normalem
 
@@ -28,66 +28,367 @@
 
 \begin{document}
 
-\title{Portland: Replication Instruction}
-\author{Chanwool Kim\thanks{The Kenneth C. Griffin Department of Economics, The University of Chicago (email: chanwoolkim@uchicago.edu).}}
-\date{\today}
+\title{README}
+\author{Chanwool Kim\thanks{Kenneth C. Griffin Department of Economics, University of Chicago.}}
+\date{This version: \today}
 \maketitle
 
-\section*{Overview}
-README.txt
+\section*{Replication Instruction}
 
-This document describes the scripts in portland\_servus (in order of the process in the master.R file). For replication, simply run master.R.
+\subsection*{Archive Structure}
 
+\subsubsection*{(0) Preliminary}
 
-DATA PREPARATION
-geocoding\_api.R
-- Codes Census tract based on address information in the Portland data
-tidy\_census\_api.R
-- Loads Census data and saves relevant variables
-setup\_portland.R
-- Loads Portland data and saves in the .RData format (analysis\_info.Rdata for all data, financial\_assistance\_info.RData for financial assistance programme only)
-delinquency\_measure.R
-- Constructs delinquency-related variables: delinquency status and amount, shutoff status
-financial\_assistance\_clean.R
-- Constructs variables for various financial assistance programs: financial assistance and payment arrangement
-merge\_data.R
-- Merge all data, saves account\_info\_analysis.RData
+\texttt{preliminary.R} loads relevant packages and records paths to directories. It also contains table and graph-generating codes.
 
-data/analysis/analysis\_info.Rdata contains the raw data
-data/analysis/account\_info\_analysis.RData contains the data primarily used in the analysis
-- Note: this file is in the account level
-- Note: this file does not restrict to residential single family: filter(ACCOUNT\_CLASS\_DFLT \%in\% c("RESSF", "ASST")) to restrict to single family
-data/analysis/delinquency\_status/RData contains the panel data on bills and payments
+\subsubsection*{(1) Data Build}
 
+\texttt{master.R} runs the data build in sequence. For each script, we have:
 
-
-
-README.txt
-
-This document describes the scripts in portland\_servus (in order of the process in the master.R file). For replication, simply run master.R.
-
-
-DESCRIPTION
-
-descriptive\_statistics.R
-- Create tables for basic descriptive statistics and overview of the data (account types)
-descriptive\_statistics\_graph.R
-- Create graphs for basic descriptive statistics (pie charts)
-descriptive\_statistics\_resmf.R
-- Create tables for basic descriptive statistics for residential multi-family units only
-descriptive\_statistics\_payment.R
-- Create tables/graphs for the payment arrangement programme
-- Note: this file also loads financial\_assistance\_info.RData
-descriptive\_statistics\_linc.R
-- Create tables/graphs for the financial assistance programme
-descriptive\_statistics\_did.R
-- Create tables for the difference-in-differences exercise
-
-
-
-Dropping
 \begin{itemize}
-	\item Drop any monthly payment bill that occurred at the end of the sample period
+	\item \texttt{geocoding\_api.R} assigns Census tract based on address information in the Portland data. It links the Census tract to each location number.
+	\item \texttt{tidy\_census\_api.R} loads the Census data and saves relevant neighborhood characteristics variables.
+	\item \texttt{setup\_portland.R} loads raw Portland data and saves in the \texttt{.RData} format.
+	\item \texttt{delinquency\_measure.R} constructs delinquency-related variables: delinquency status and amount, shutoff status.
+	\item \texttt{financial\_assistance\_clean.R} constructs variables for various financial assistance programs: financial assistance and payment arrangement.
+	\item \texttt{merge\_data.R} merges all data at the account level, saves \texttt{account\_info\_analysis.RData}.
+	\item \texttt{bill\_usage\_clean.R} cleans the detailed financial information data and bill usage data. It summarizes consumption and rates, along with fees, at the bill level.
+	\item \texttt{delinquency\_construct.R} creates the bill info dataset with delinquency measures and financial assistance information.
+	\item \texttt{panel\_construct.R} creates the panel dataset of all the bills by merging each dataset generated in previous steps at the bill level.
+	\item \texttt{panel\_estimation\_construct.R} aggregates monthly bills into quarterly bills and flags any irregular bills.
+\end{itemize}
+
+\subsubsection*{(2) Descriptive Statistics}
+
+\texttt{master.R} runs the descriptive statistics in sequence. For each script, we have:
+
+\begin{itemize}
+	\item \texttt{descriptive\_statistics\_overview.R} creates tables for basic descriptive statistics and overview of the data (account types).
+	\item \texttt{descriptive\_statistics\_delinquency.R} creates tables and graphs for delinquency measures by the Census tract.
+	\item \texttt{descriptive\_statistics\_graph.R} creates graphs for basic descriptive statistics (pie charts).
+	\item \texttt{descriptive\_statistics\_resmf.R} creates tables for basic descriptive statistics for residential multi-family units only.
+	\item \texttt{descriptive\_statistics\_payment\_overview.R} creates tables/graphs for the payment arrangement program.
+	\item \texttt{descriptive\_statistics\_payment.R} creates tables/graphs for the payment arrangement program.
+	\item \texttt{descriptive\_statistics\_linc.R} creates tables/graphs for the financial assistance program.
+	\item \texttt{descriptive\_statistics\_did.R} creates tables for a rudimentary difference-in-differences exercise of delinquency rates on various assistance programs.
+\end{itemize}
+
+\subsubsection*{(3) Model}
+
+\begin{itemize}
+	\item \texttt{static\_demand.R} runs a static demand model.
+\end{itemize}
+
+\pagebreak
+
+\section*{Data Construction}
+
+\subsection*{Accessing the Data}
+
+All of the data used in this study were provided by the Portland Water Bureau.
+
+\subsection*{Project Overview}
+
+The objective of this project is to estimate the effect of personalized pricing for water bills on delinquency. To do so, we first need to estimate the propensity to pay and price elasticity of water usage. While we plan to use experimental data to get the estimates, we want to exploit the existing price variations and assistance programmes. Therefore, we need to construct the following data for each account:
+\begin{itemize}
+	\item History of bills and payments each quarter
+	\item History of participation in existing programs
+	\item History of usage each quarter
+\end{itemize}
+We create the data we want in the following steps:
+\begin{enumerate}
+	\item Clean and merge raw data on the account-quarter bill level
+	\item Aggregate data to a quarterly level for any monthly plans
+	\item Flag any anomalies
+\end{enumerate}
+
+\subsection*{Raw Data}
+
+All of the data are initially loaded and transformed to \texttt{.RData} file in \texttt{setup\_portland.R}. All are merged to the account-quarter bill level in \texttt{panel\_construct.R} and \texttt{panel\_construct\_estimation.R}.
+\begin{table}[H]
+\centering
+\caption{Raw Data List}\label{tab:raw_data}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{llllll}
+\toprule 
+\midrule
+\multicolumn{1}{c}{Data Name [Original Name]} & \multicolumn{1}{c}{Dimensions} & \multicolumn{1}{c}{Processing Script} & \multicolumn{1}{c}{Relevant Raw Variables} & \multicolumn{1}{c}{Identifier} \\
+\midrule
+\texttt{account\_info} [UM00200M] & 700006$\times$67 & \texttt{merge\_data.R} & account info\tablefootnote{\texttt{ACCOUNT\_CLASS\_DFLT}, \texttt{CYCLE\_CD}}, \texttt{LAST\_BILL\_AMT} & account, person \\
+\texttt{bill\_info} [UM00260T] & 5105378$\times$78 & \texttt{delinquency\_measure.R} & dates\tablefootnote{\texttt{BILL\_RUN\_DT}, \texttt{PERIOD\_FROM\_DT}, \texttt{PERIOD\_TO\_DT}, \texttt{DUE\_DT}}, bill character\tablefootnote{\texttt{CANCELED\_BILL\_YN}, \texttt{ERROR\_YN}, \texttt{AUDIT\_OR\_LIVE}, \texttt{CORRECTED\_BILL\_YN}, \texttt{OFF\_CYCLE\_YN}, \texttt{BILL\_TP}, \texttt{SOURCE\_CD}}, bill amounts\tablefootnote{\texttt{PREV\_BILL\_AMT}, \texttt{TOTAL\_PAYMENTS}, \texttt{AR\_DUE\_BEFORE\_BILL}, \texttt{AR\_DUE\_AFTER\_BILL}} & account, person \\
+\texttt{financial\_info} [AR00200T] & 20135250$\times$63 & \texttt{bill\_usage\_clean.R} & \texttt{ADJUSTED\_BILL\_AMT}, \texttt{ITEM\_SUMMARY} & account, location \\
+\texttt{usage\_info} [UM00262T] & 39238143$\times$50 & \texttt{bill\_usage\_clean.R} & consumption character\tablefootnote{\texttt{BILL\_PRINT\_CD}, \texttt{REPORT\_CONTEXT}, \texttt{BC\_DETAIL\_PRORATED\_YN}, \texttt{BC\_ACTIVE\_DAYS}, \texttt{BC\_STANDARD\_DAYS}}, consumption amount\tablefootnote{\texttt{BC\_DETAIL\_AMT}, \texttt{CONS\_LEVEL\_AMT}} & account, location \\
+\texttt{address\_info} [UM00100M] & 198090$\times$58 & \texttt{geocoding\_api.R} & address\tablefootnote{\texttt{HOUSE\_NO}, \texttt{STREET\_PFX\_DIR}, \texttt{STREET\_NM}, \texttt{STREET\_NM\_SFX}, \texttt{CITY}, \texttt{PROVINCE\_CD}, \texttt{POSTAL\_CODE}} & location \\
+\texttt{location\_relation} [UM00120T] & 598021$\times$30 & \texttt{setup\_portland.R} & \multicolumn{1}{c}{-} & account, person, location \\
+\texttt{financial\_assist} [UM00232T] & 55717$\times$13 & \texttt{financial\_assistance\_clean.R} & \multicolumn{1}{c}{-} & account \\
+\texttt{financial\_assist\_detail} [Linc Data] & 182134$\times$28 & \texttt{financial\_assistance\_clean.R} & dates\tablefootnote{\texttt{BILL\_DT}, \texttt{LINC\_EFFECTIVE\_DATE}, \texttt{LINC\_EXPIRY\_DATE}}, consumption\tablefootnote{ \texttt{WATER\_CONS}, \texttt{SEWER\_CONS}}, fees\tablefootnote{\texttt{PENALTY\_FEES}, \texttt{PENALTY\_FEES\_REVERSED}}, bill\tablefootnote{\texttt{NET\_BILL\_AMT}, \texttt{BILLED\_AMT\_BEFORE\_DIS}, \texttt{LINC\_DISCOUNT\_AMT}, \texttt{CRISIS\_VOUCHER\_AMT}}, \texttt{LINC\_TIER\_TYPE} & account \\
+\texttt{payment\_arrangement} [CO00200M] & 850272$\times$32 & \texttt{financial\_assistance\_clean.R} & \texttt{STATUS\_CD}, \texttt{START\_DT}, \texttt{END\_DT}, \texttt{ARRANGEMENT\_AMT} & account \\
+\texttt{payment\_arrangement\_info} [CO00210T] & 1619030$\times$14 & \texttt{financial\_assistance\_clean.R} & \texttt{AMOUNT\_DUE}, \texttt{OUTSTANDING\_AMT} & account\tablefootnote{Match to \texttt{payment\_arrangement} using \texttt{PAY\_ARRANGEMENT\_REF}} \\
+\texttt{cutoff\_info} [RS00200M\_CUTOF] & 11340$\times$63 & \texttt{delinquency\_measure.R} & \texttt{EFFECTIVE\_DT} & account, person, location \\
+\texttt{reconnect\_info} [RS00200M\_RCNCT] & 12132$\times$63 & \texttt{delinquency\_measure.R} & \texttt{EFFECTIVE\_DT} & account, person, location \\
+\texttt{collection\_info} [CO00400T] & 79582$\times$12 & \texttt{panel\_construct.R} & \multicolumn{1}{c}{-} & account \\
+\texttt{collection\_amount} [CO00450T] & 67684$\times$53 & \texttt{panel\_construct.R} & \texttt{AMT\_DUE}, \texttt{ACT\_COL\_AMT} & account \\
+\texttt{code\_info} [AR50100C] & 162$\times$50 & \texttt{setup\_portland.R} & address & \multicolumn{1}{c}{-} \\
+\midrule 
+\bottomrule 
+\end{tabular}}
+\end{table}
+
+\subsection*{Water Bill}
+
+This section provides a brief discussion on Portland Water Bureau's billing rules and how we deal with different prices.
+
+The city adjusts water rates annually on July 1. Water use is measured in ccf or centum (100) cubic feet. One ccf is 748 gallons. The meter rounds down to the nearest whole number.
+
+\subsubsection*{Water Prices}
+
+A typical bill that households receive contains the following components: water volume, sewer volume, stormwater off-site, stormwater on-site, Portland Harbor Superfund, and base charge, along with clean river rewards, discounts, and late fees for those applicable. For the purposes of our analysis, we consolidate the prices for the bill into water variable price, sewer variable price, and fixed price. To categorize fixed and variable prices, we note the following:
+
+\begin{itemize}
+	\item Water variable price is the price applied for the consumption of water.
+	\item Sewer price includes the price applied for the consumption of sewer, along with Portland Harbor Superfund, BOD, TSS, and cleanriver discount that depends on the sewer consumption level.
+	\begin{itemize}
+		\item For residential accounts, the water used in the winter months (reads from 2/1 – 4/30 for quarterly accounts, 12/1 – 4/30 for monthly accounts) is used to set what is called the winter average. If the water usage is lower for a given quarter, then the lower value is used to bill for sewer.
+		\item Customers can fill out a form that then determines the amount of the on-site stormwater that is discountable. It could be up to 100\%, depending on how stormwater is managed at a property.
+	\end{itemize}
+	\item Fixed price includes all other prices, including base price, fixed portion of the Harbor Superfund, etc., that only depend on the area designated by Portland and not on the water/sewer consumption level.
+	\begin{itemize}
+		\item There are two components to the Portland Harbor Superfund total: sewer volume and stormwater. Sewer volume is ccf billed for sewer times \$.12. On the stormwater, it is \$.36 per 1,000 square feet of impervious area (IA). Standard residential IA is 2,400 square feet.
+	\end{itemize}
+\end{itemize}
+
+\subsubsection*{Penalty for Delinquency}
+
+In addition, a 1\% penalty is only charged on the current unpaid bill, not a cumulative total of the overall balance in arrears. Pre-pandemic, a residential single-family account was eligible for shutoff if they owed \$115 or more and the amount was 56 days past due on their bill. The timelines are shorter for returned items and broken payment arrangements. The threshold balance was set at \$1,000, and moved down to \$500 in the summer of 2023. The accounts enrolled in financial assistance were not eligible for the shutoff, which changed in 2023 summer when the city lowered the threshold to \$500. Payments are applied to the oldest aged receivables first and split proportionately across the different charges (water, sewer storm).
+
+\subsubsection*{Frequency of Billing}
+
+Portland allows quarterly, monthly, and bi-monthly billing frequencies. Most residential single-family households are on a quarterly basis, with less than 1\% on monthly or bi-monthly bills.
+
+\subsection*{Merging and Filtering}
+
+This section describes how we merge and filter the raw data.
+
+We begin with the bill info dataset, which consists of bills generated by the city from 2019 to 2023. We focus on residential accounts that use both water and sewer and are eligible for shutoff in case of delinquency. This reduces to residential single-family accounts, as multi-family units such as condos are not eligible for shutoff.
+
+As presented in Table \ref{tab:raw_data}, most of the data have an account as the identifier. We primarily use the account number to merge the datasets and use person and location numbers to complement the merge. Any data that follow bills (\texttt{bill\_info}, \texttt{financial\_info}, \texttt{usage\_info}, etc.) contain the bill generation date, which is used to merge into the account-bill level.
+
+\subsubsection*{Valid Bills}
+
+We only keep bills that are not canceled, sent in error, audited, or corrected. We also only keep those that have valid date variables that can be matched to relevant usage and financial data using the bill-generated date. We then drop off any anomalies (about 0.5\% of the monthly bills that do not occur in a natural subsequent order).
+
+\subsubsection*{Census Data}
+
+Portland Water Bureau serves Multnomah, Washington, and Clackamas counties in Oregon. For the Census tracts in these counties, we obtain total number of households, household size, unemployment rate, average income, average earnings, average retirement income, average SSI, average cash assistance, average food stamp amount, share of those under the poverty line, and share of races from 2021 American Community Survey. We link the location number to each account using \texttt{location\_relation} data and merge in Census tract information using the geocoded Census tract number from \texttt{address\_info} that link location numbers to the Census tract. We drop bills that do not have a matching location number.
+
+After merging the location data, we add in various program participation information (payment arrangements, financial assistance) and flag whether the bill took place when they were enrolled in the program. Similarly, we add in cutoff/reconnect status.
+
+The merged dataset is saved as \texttt{portland\_panel.RData}.
+
+\subsection*{Aggregation}
+
+Some households signed up for a payment plan, which allowed them to pay a quarterly bill over roughly three equally split bills each month. As we want our panel to be at the account-quarter level, we need to aggregate these monthly bills into quarterly bills again.
+
+A typical quarterly bill in the data looks like the following:
+\begin{table}[H]
+\centering
+\caption{Typical Bill}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{llllll}
+\toprule 
+\midrule
+\texttt{previous\_bill} & \texttt{total\_payments} & \texttt{leftover\_debt} & \texttt{current\_bill} & \texttt{BILL\_TP} & \texttt{SOURCE\_CD} \\
+\midrule
+\texttt{PREV} & \texttt{PREV\_PAYMENTS} & \texttt{PREV-PREV\_PAYMENTS}$\equiv$\texttt{PREV\_DEBT} & \texttt{TOTAL\_BILL+PREV\_DEBT} & \texttt{REGLR} & \\
+\texttt{TOTAL\_BILL+PREV\_DEBT} & \texttt{TOTAL\_PAYMENTS} & \texttt{TOTAL\_BILL+PREV\_DEBT-TOTAL\_PAYMENTS}$\equiv$\texttt{TOTAL\_DEBT} & \texttt{NEW\_BILL+TOTAL\_DEBT} & \texttt{REGLR} & \\
+\midrule
+\bottomrule 
+\end{tabular}}
+\end{table}
+
+When an account signs up for a monthly payment plan, their bills in the data would look like the following:
+\begin{table}[H]
+\centering
+\caption{Bill on Monthly Payment Plan}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{llllll}
+\toprule 
+\midrule
+\texttt{previous\_bill} & \texttt{total\_payments} & \texttt{leftover\_debt} & \texttt{current\_bill} & \texttt{BILL\_TP} & \texttt{SOURCE\_CD} \\
+\midrule
+\texttt{PREV} & \texttt{PREV\_PAYMENTS} & \texttt{PREV-PREV\_PAYMENTS}$\equiv$\texttt{PREV\_DEBT} & \texttt{QB1\_BILL+PREV\_DEBT} & \texttt{MSTMT} & \texttt{QB1} \\
+\texttt{QB1\_BILL+PREV\_DEBT+QB2\_BILL+QB3\_BILL} & \texttt{QB1\_PAYMENTS} & \texttt{QB1\_BILL+PREV\_DEBT-QB1\_PAYMENTS}$\equiv$\texttt{QB1\_DEBT} & \texttt{QB2\_BILL+QB1\_DEBT} & \texttt{MSTMT} & \texttt{QB2} \\
+\texttt{QB2\_BILL+QB1\_DEBT+QB3\_BILL} & \texttt{QB2\_PAYMENTS} & \texttt{QB2\_BILL+QB1\_DEBT-QB2\_PAYMENTS}$\equiv$\texttt{QB2\_DEBT} & \texttt{QB3\_BILL+QB2\_DEBT} & \texttt{MSTMT} & \texttt{QB3} \\
+\texttt{QB3\_BILL+QB2\_DEBT} & \texttt{QB3\_PAYMENTS} & \texttt{QB3\_BILL+QB2\_DEBT-QB3\_PAYMENTS}$\equiv$\texttt{QB3\_DEBT} & \texttt{NEW\_BILL+QB3\_DEBT} & \texttt{REGLR} & \\
+\midrule
+\bottomrule 
+\end{tabular}}
+\end{table}
+where \texttt{BILL\_TP} of \texttt{MSTMT} refers to the monthly bills and \texttt{SOURCE\_CD} specifies the corresponding ``month'' of the split bills.
+
+Therefore, the goal is to aggregate this back to the typical quarterly bill as shown above. A typical ``aggregated'' bill should look like the typical bill above.
+
+We do so by noticing that \texttt{previous\_bill}, \texttt{total\_payments}, and \texttt{leftover\_debt} remain the same for \texttt{QB1} and that \texttt{QB3\_DEBT} effectively summarizes all the debt accumulated throughout the monthly bills. Let us begin with the first row of the typical quarterly bill. If we replace \texttt{current\_bill} for \texttt{QB1} by \texttt{previous\_bill} for \texttt{QB2}, we now have the row for \texttt{QB1} equivalent to the first row in the typical quarterly bill.
+
+Now, to the second row. We first replace the \texttt{previous\_bill} for the \texttt{REGLR} bill with the \texttt{previous\_bill} for \texttt{QB2}. We then replace \texttt{total\_payments} with:
+\begin{align*}
+\texttt{QB1\_PAYMENTS}+\texttt{QB2\_PAYMENS}+\texttt{QB3\_PAYMENTS}\equiv\texttt{TOTAL\_PAYMENTS}
+\end{align*}
+Notice now that:
+\begin{align*}
+\texttt{TOTAL\_BILL} & \equiv\texttt{QB1\_BILL}+\texttt{QB2\_BILL}+\texttt{QB3\_BILL} \\
+\Rightarrow\texttt{QB3\_DEBT} & =\texttt{QB3\_BILL}+\texttt{QB2\_DEBT}-\texttt{QB3\_PAYMENTS} \\
+& =\texttt{QB3\_BILL}+(\texttt{QB2\_BILL}+\texttt{QB1\_DEBT}-\texttt{QB2\_PAYMENTS})-\texttt{QB3\_PAYMENTS} \\
+& =\texttt{QB3\_BILL}+\texttt{QB2\_BILL} \\
+& \quad+(\texttt{QB1\_BILL}+\texttt{PREV\_DEBT}-\texttt{QB1\_PAYMENTS}) \\
+& \quad-\texttt{QB2\_PAYMENTS}-\texttt{QB3\_PAYMENTS} \\
+& =\texttt{QB1\_BILL}+\texttt{PREV\_DEBT}+\texttt{QB2\_BILL}+\texttt{QB3\_BILL} \\
+& \quad-(\texttt{QB1\_PAYMENTS}+\texttt{QB2\_PAYMENTS}+\texttt{QB2\_PAYMENTS}) \\
+& =\texttt{TOTAL\_BILL}+\texttt{PREV\_DEBT}-\texttt{TOTAL\_PAYMENTS}
+\end{align*}
+So we do not have to change \texttt{leftover\_debt} and \texttt{current\_bill} for the last row. We then remove \texttt{QB2} and \texttt{QB3} bills and have completed the aggregation.
+
+Sometimes, final bills occur before the complete cycle of monthly bills occurs (e.g., \texttt{FINAL} occurs immediately after \texttt{QB2}). In some cases, another monthly cycle occurs immediately after a monthly cycle (e.g., QB1 happens immediately after QB3). These cases are aggregated similarly to the typical case mentioned above.
+
+All the other usage or components of the bills (financial assistance amount, etc.) could simply be aggregated and filled into the first month because that is when they were applied.
+
+We aggregate any flags (participation in payment arrangement, financial assistance, cutoff) and indicate if any of the bills were flagged.
+
+Once the aggregation is completed, we add in flag \texttt{AGG} to indicate that the bill has been aggregated and \texttt{CHOP} on any remaining monthly bills that could not be aggregated as they are still in place at the end of the data scraping period.
+
+The resulting dataset is saved as \texttt{portland\_panel\_estimation.RData} and used for the static demand model estimation.
+
+\subsection*{Flags and How to Use Them}
+
+This section discusses various flags in the final panel data where they are relevant for the potential dropping of the observations.
+
+\subsubsection*{Bill Type (\texttt{BILL\_TP})}
+
+While the final bill is already flagged in the raw data (\texttt{BILL\_TP} is \texttt{FINAL}), we do not have a raw indicator of the first bill. Therefore, we flag the first bill when the bill a) first appeared in the raw data, b) no previous bill associated with it, and c) no payment was made.
+
+Sometimes, the owner reoccupies the property after leasing it for a while, or a household returns to the property after living in another place. This comes up in the data as a bill reappearing after the final bill. We flag these as \texttt{RESUME}. Similarly, when the first appeared in the bill data with no previous bill but made non-zero total payments, we flag it as \texttt{RESUME}, assuming that the payment must have been from a previous bill\footnote{This may not always be the case. For instance, an owner may assume a tenant's unpaid bill. This is up as a remaining task.}.
+
+\subsubsection*{Seniors and Disabled (\texttt{senior\_disabilities})}
+
+When households sign up for financial assistance programs, they may provide evidence that they belong to the seniors or disabled group. While the regular financial assistance recipients have an expiry date and have to re-enroll after expiration, seniors and disabled do not have an expiry date for their discounts. In data, this is done by assigning the expiry date in 2065 or beyond.
+
+\subsubsection*{Proposal for Dropping Observations}
+
+From the estimation sample, we propose the following additional ``drops'' for the bills:
+\begin{itemize}
+	\item First bill (\texttt{BILL\_TP} is \texttt{FIRST})
+	\begin{itemize}
+		\item First bills do not have any previous bills, and they are off-cycle.
+	\end{itemize}
+	\item Last bill (\texttt{BILL\_TP} is \texttt{FINAL})
+	\begin{itemize}
+		\item Final bills are off-cycle, and they often do not get sent to any collection activities.
+		\item There is an incentive to keep the final bill below the threshold to avoid collection agencies. However, the shutoff threat does not work for the final bills.
+	\end{itemize}
+	\item Resumed bill (\texttt{BILL\_TP} is \texttt{RESUME}
+	\begin{itemize}
+		\item These are essentially \texttt{FIRST} bills, except they have previous bill amounts (which was the previous \texttt{FINAL} bill). The issue is that the previous bill was off-cycle. Now, a major complication is that there is a large gap before resumption (regardless of whether we drop \texttt{RESUME} or not).
+	\end{itemize}
+	\item Incomplete monthly payment cycle (\texttt{agg} is \texttt{CHOP})
+	\begin{itemize}
+		\item These bills are where aggregation failed because the data scraping period ended before a quarter had passed. They do not have any usage information attached as they were not aggregated back to the quarterly level.
+	\end{itemize}
+	\item Monthly or bi-monthly billing cycle (\texttt{CYCLE\_CD} is not \texttt{QUARTER})
+	\begin{itemize}
+		\item Note that this is different from the monthly payment plan. Those who had a monthly billing cycle pay for the past month's consumption, whereas those on a monthly payment plan pay (roughly) a third of the past quarter's consumption.
+		\item There was a very small subset of non-quarterly accounts: 1253 monthly and 246 bi-monthly bills in the dataset ($0.04\%$ and $\leq0.01\%$, respectively).
+	\end{itemize}
+\end{itemize}
+
+Additionally, we propose the following flags to pay close attention but not use them as drop observations:
+\begin{itemize}
+	\item Seniors and disabled (\texttt{senior\_disabilities} is \texttt{TRUE})
+	\begin{itemize}
+		\item They are not part of the price experiments but represent an important subgroup.
+	\end{itemize}
+\end{itemize}
+
+\subsection*{Resulting Panel Data}
+
+The table below lists the variables in the final estimation panel dataset: 
+\begin{table}[H]
+\centering
+\caption{Variable List in \texttt{portland\_panel\_estimation.RData}}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{llll}
+\toprule 
+\midrule
+\multicolumn{1}{c}{Variable Name} & \multicolumn{1}{c}{Description} & \multicolumn{1}{c}{Type} & \multicolumn{1}{c}{Values} \\
+\midrule
+\texttt{ACCOUNT\_NO} & account number & character & \multicolumn{1}{c}{-} \\
+\texttt{PERSON\_NO} & person number & numeric & \multicolumn{1}{c}{-} \\ 
+\texttt{LOCATION\_NO} & location number & numeric & \multicolumn{1}{c}{-} \\
+\midrule
+\texttt{OCCUPANCY} & occupancy status\tablefootnote{Not all accounts have this information. We cannot simply assume that those missing this information are either owners or tenants, so we leave it blank.} & character & \texttt{OWNER}, \texttt{TENANT}, \texttt{NA} \\
+\texttt{tract} & Census tract code\tablefootnote{Census tract code is an 11-digit code consisting of 2-digit state, 3-digit county, and 6-digit tract code. Even though the Portland Water Bureau's service area covers 3 counties, the last 6 digits uniquely identify the tracts, and so the raw data reports those.} & character & \multicolumn{1}{c}{-} \\
+\midrule
+\texttt{BILL\_RUN\_DT} & date when bill was generated & date & \multicolumn{1}{c}{-} \\
+\texttt{bill\_year} & year for \texttt{BILL\_RUN\_DT} & integer & \multicolumn{1}{c}{-} \\
+\texttt{PERIOD\_FROM\_DT} & start date of the billing period & date & \multicolumn{1}{c}{-} \\
+\texttt{PERIOD\_TO\_DT} & end date of the billing period & date & \multicolumn{1}{c}{-} \\
+\texttt{DUE\_DT} & bill due date & date & \multicolumn{1}{c}{-} \\
+\midrule
+\texttt{SOURCE\_CD} & month number for monthly payment plans & character & \texttt{QB1}, \texttt{QB2}, \texttt{QB3} \\
+\texttt{BILL\_TP} & bill type (first, regular, final, resume, monthly) & character & \texttt{FIRST}, \texttt{REGLR}, \texttt{FINAL}, \texttt{RESUME}, \texttt{MSTMT} \\
+\texttt{OFF\_CYCLE\_YN} & indicator if bill is off the regular billing cycle & logical & \multicolumn{1}{c}{-} \\
+\texttt{CYCLE\_CD} & billing cycle code & character & \texttt{QUARTER}, \texttt{MONTH}, \texttt{BIMONTH} \\
+\midrule
+\texttt{previous\_bill} & amount of previous bill & numeric & \multicolumn{1}{c}{-} \\
+\texttt{total\_payments} & total payments made & numeric & \multicolumn{1}{c}{-} \\
+\texttt{leftover\_debt} & leftover debt (= previous\_bill-total\_payments) & numeric & \multicolumn{1}{c}{-} \\
+\texttt{current\_bill} & current bill & numeric & \multicolumn{1}{c}{-} \\
+\texttt{writeoff\_amount} & amount written off (officially) & numeric & \multicolumn{1}{c}{-} \\
+\texttt{final\_writeoff} & amount implicitly written off from uncollected final bill & numeric & \multicolumn{1}{c}{-} \\
+\texttt{collection\_sent\_amount} & amount sent to collection agency & numeric & \multicolumn{1}{c}{-} \\
+\texttt{collection\_collected\_amount} & amount collected by collection agency & numeric & \multicolumn{1}{c}{-} \\
+\texttt{delinquent} & whether previous bill went delinquent (= leftover\_debt $\geq0$) & logical & \multicolumn{1}{c}{-} \\
+\midrule
+\texttt{usage\_bill\_amount} & newly generated usage bill (absent arrears) & numeric & \multicolumn{1}{c}{-} \\
+\texttt{usage\_bill\_water\_cons} & water portion of the usage bill & numeric & \multicolumn{1}{c}{-} \\
+\texttt{usage\_bill\_sewer\_cons} & sewer portion of the usage bill & numeric & \multicolumn{1}{c}{-} \\
+\texttt{bill\_penalty} & fee for penalty & numeric & \multicolumn{1}{c}{-} \\
+\texttt{bill\_donate} & amount of donation & numeric & \multicolumn{1}{c}{-} \\
+\texttt{bill\_bankrupt} & amount bankrupted & numeric & \multicolumn{1}{c}{-} \\
+\texttt{bill\_leaf} & special fee for leaf removal & numeric & \multicolumn{1}{c}{-} \\
+\midrule
+\texttt{price\_water} & rates for water (variable) & numeric & \multicolumn{1}{c}{-} \\
+\texttt{price\_sewer} & rates for sewer\tablefootnote{While this is a variable price, it does not directly get multiplied to the amount of sewer used in that particular quarter. The consumption level used to charge the sewer portion of the bill is from the consumption level during the winter quarter.} (variable) & numeric & \multicolumn{1}{c}{-} \\
+\texttt{price\_fixed} & fixed price & numeric & \multicolumn{1}{c}{-} \\
+\texttt{price\_donation} & rates for donation & numeric & \multicolumn{1}{c}{-} \\
+\texttt{price\_discount} & rates applied for discount (financial assistance) & numeric & \multicolumn{1}{c}{-} \\
+\midrule
+\texttt{water\_cons} & water consumption (in ccf) & numeric & \multicolumn{1}{c}{-} \\
+\texttt{sewer\_cons} & sewer consumption (in ccf) & numeric & \multicolumn{1}{c}{-} \\
+\midrule
+\texttt{payment\_arrange} & indicator if in payment arrangement & logical & \multicolumn{1}{c}{-} \\
+\texttt{payment\_arrange\_status} & indicator if the payment arrangement is in good standing\tablefootnote{It should be noted that the majority of the payment arrangements were terminated for broken terms.} & logical & \multicolumn{1}{c}{-} \\
+\texttt{financial\_assist} & indicator if receiving financial assistance & logical & \multicolumn{1}{c}{-} \\
+\texttt{cutoff} & indicator if currently experiencing water cutoff & logical & \multicolumn{1}{c}{-} \\
+\midrule
+\texttt{LINC\_TIER\_TYPE} & financial assistance (LINC) tier\tablefootnote{Tier 1 is eligible for those below 60\% of the average monthly income and Tier 2 for 30\%.} & character & \texttt{Tier 1}, \texttt{Tier 2} \\
+\texttt{net\_after\_assistance} & net bill after discount is applied & numeric & \multicolumn{1}{c}{-} \\
+\texttt{bill\_before\_assistance} & bill before discount is applied & numeric & \multicolumn{1}{c}{-} \\
+\texttt{discount\_assistance} & amount of discount applied & numeric & \multicolumn{1}{c}{-} \\
+\texttt{crisis\_voucher\_amount} & amount of crisis voucher (separate from discount) & numeric & \multicolumn{1}{c}{-} \\
+\texttt{senior\_disabilities} & indicator if seniors or disabled\tablefootnote{Seniors and disabled were part of the financial assistance program. Because the program was opt-in, we do not observe whether someone belongs to the seniors/disabled group unless they signed up for the program.} & logical & \multicolumn{1}{c}{-} \\
+\midrule
+\texttt{agg} & status of the aggregation\tablefootnote{CHOP refers to those who could not be aggregated because the data scraping period ended before the completion of the full monthly payment cycle.} & character & \texttt{AGG}, \texttt{CHOP} \\
+\midrule 
+\bottomrule 
+\end{tabular}}
+\end{table}
+
+\subsection*{Remaining Work}
+
+\begin{itemize}
+	\item Track ``transferred'' bills (either by \texttt{PERSON\_NO} or \texttt{LOCATION\_NO})
+	\item Update panel dataset with the new \texttt{financial\_info} dataset
+	\item Add any payments to the final bill from the \texttt{financial\_info} dataset
 \end{itemize}
 
 \end{document}
