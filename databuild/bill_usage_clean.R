@@ -66,7 +66,9 @@ bill_info <- bill_info %>%
 financial_info_leftover <- financial_info %>%
   left_join(bill_info,
             by=c("ACCOUNT_NO", "SS_BILL_DT"="BILL_RUN_DT")) %>%
-  filter(is.na(match)) %>%
+  filter(is.na(match),
+         ITEM_CATEGORY=="PYMNT",
+         !grepl("COMMIT", ITEM_TP)) %>%
   select(-match)
 
 financial_info <- financial_info %>%
