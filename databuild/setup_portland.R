@@ -24,30 +24,26 @@ account_info <- read.table(file=paste0(data_dir, "/UM00200M.txt"),
 colnames(account_info) <- colnames(account_info)[2:ncol(account_info)]
 account_info <- account_info[1:(ncol(account_info)-1)]
 
-financial_info <- read.table(unz(paste0(data_dir, "/servus_largefiles.zip"),
-                                 "AR00200t_FINAL.txt"),
-                             sep=",", quote="", comment.char="",
-                             fill=TRUE, header=TRUE, row.names=NULL, stringsAsFactors=FALSE)
+financial_info_names <- (zip_list(paste0(data_dir, "/servus_largefiles.zip")) %>%
+  filter(!grepl("__MACOSX", filename),
+         grepl("Ar00200t", filename),
+         grepl(".txt", filename)))$filename
 
-colnames(financial_info) <- colnames(financial_info)[2:ncol(financial_info)]
-financial_info <- financial_info[1:(ncol(financial_info)-1)]
+financial_info <- data.frame()
 
-financial_info_update <- read.table(unz(paste0(data_dir, "/servus_largefiles.zip"),
-                                        "AR00200t_11012022-06222023.txt"),
-                                    sep=",", quote="", comment.char="",
-                                    fill=TRUE, header=TRUE, row.names=NULL, stringsAsFactors=FALSE)
+for (file in financial_info_names) {
+  temp <- read.table(unz(paste0(data_dir, "/servus_largefiles.zip"),
+                         file),
+                     sep=",", quote="", comment.char="",
+                     fill=TRUE, header=TRUE, row.names=NULL, stringsAsFactors=FALSE)
+  
+  colnames(temp) <- colnames(temp)[2:ncol(temp)]
+  temp <- temp[1:(ncol(temp)-1)]
+  
+  financial_info <- rbind(financial_info, temp)
+}
 
-colnames(financial_info_update) <- colnames(financial_info_update)[2:ncol(financial_info_update)]
-financial_info_update <- financial_info_update[1:(ncol(financial_info_update)-1)]
-
-financial_info_update <- financial_info_update %>%
-  mutate(SOURCE_REFERENCE="",
-         SOURCE_SPEC1="",
-         SOURCE_SPEC2="",
-         SOURCE_SPEC3="") %>%
-  select(-ADD_BY, -CHG_BY, -ITEM_CMTS)
-
-financial_info <- rbind(financial_info, financial_info_update) %>% distinct()
+financial_info <- financial_info %>% distinct()
 
 bill_info <- read.table(file=paste0(data_dir, "/UM00260T_redacted_FINAL.txt"),
                         sep=",", quote="", comment.char="",
@@ -137,7 +133,7 @@ collection_amount <- rbind(collection_amount, collection_amount_update) %>% dist
 
 usage_df_load <- function(filename) {
   df <- read.table(unz(paste0(data_dir, "/servus_largefiles.zip"),
-                       paste0(filename, ".txt")),
+                       paste0("servus_largefiles/", filename, ".txt")),
                    sep=",", quote="", comment.char="",
                    fill=TRUE, header=TRUE, row.names=NULL, stringsAsFactors=FALSE)
   
