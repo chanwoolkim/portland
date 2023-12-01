@@ -18,25 +18,47 @@ working_data_dir <- paste0(wd, "/data/analysis")
 output_dir <- paste0(code_dir, "/output")
 
 
-
-
+#---------+---------+---------+---------+---------+---------+
 # Load data
-load(file=paste0(working_data_dir, "/portland_panel.RData"))
+#---------+---------+---------+---------+---------+---------+
+load(file=paste0(working_data_dir, "/portland_panel_estimation.RData"))
+df = portland_panel_estimation
 
+#---------+---------+---------+---------+---------+---------+
 # set up estimation data
-df = portland_panel
-# Preclean ####
-# Couple of dollars left on a bill is not officially delinquent
-#df <- df %>%mutate()
-
+# (1) Create Variables for analysis
+#---------+---------+---------+---------+---------+---------+
 df$month = month(df$DUE_DT)
 df$year = year(df$DUE_DT)
 df$time = (df$year-min(df$year))*12+ df$month
+df$total_payments = -df$total_payments
+
+
+#---------+---------+---------+---------+---------+---------+
+# set up estimation data
+# (2) Filters
+#  - BILL_TP=="FIRST" (no previous bills so first invoice so off-cycle)
+#  - BILL_TP=="FINAL" (final bill so off-cycle)
+#  - BILL_TP=="RESUME" (like a first bill after account frozen)
+#  - agg == "CHOP" (problems with our aggreation period)
+#  - CYCLE_CD != "QUARTER" (i.e., monthly and bi-monthly bills dropped)
+#---------+---------+---------+---------+---------+---------+
+
+# define filters
+keep_types = (df$BILL_TP!="FIRST" & df$BILL_TP!="FINAL" & df$BILL_TP!="RESUME" & df$agg!="CHOP" & df$CYCLE_CD=="QUARTER")
+
+
+# retain periods with complete account information
+keep_time = df$time<=67
 df = df[df$time<=67,]
 
-df$total_payments = -df$total_payments
+# drop negative payments
+keep_pay = df$total_payments>=0
+
 df = df[df$total_payments>=0,]
 
+
+df = df[keep_types==1 & keep_time==1 & keep_pay==1,]
 df1 = pdata.frame(df,index = c("ACCOUNT_NO","time"))
 
 summary(felm( df$delinquent ~ df$price_water+df$price_sewer + df$price_discount| df$ACCOUNT_NO + df$time))
@@ -64,3 +86,4 @@ for(ii in acctlist){
 }
 
 
+zz = (as.numeric(df$ACCOUNT_NO)-min(as.numeric(df$ACCOUNT_NO)))*55 + df$time
