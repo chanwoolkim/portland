@@ -116,7 +116,7 @@ All of the data are initially loaded and transformed to \texttt{.RData} file in 
 \midrule
 \texttt{account\_info} [UM00200M] & 700006$\times$67 & \texttt{merge\_data.R} & account info\tablefootnote{\texttt{ACCOUNT\_CLASS\_DFLT}, \texttt{CYCLE\_CD}}, \texttt{LAST\_BILL\_AMT} & account, person \\
 \texttt{bill\_info} [UM00260T] & 5105378$\times$78 & \texttt{delinquency\_measure.R} & dates\tablefootnote{\texttt{BILL\_RUN\_DT}, \texttt{PERIOD\_FROM\_DT}, \texttt{PERIOD\_TO\_DT}, \texttt{DUE\_DT}}, bill character\tablefootnote{\texttt{CANCELED\_BILL\_YN}, \texttt{ERROR\_YN}, \texttt{AUDIT\_OR\_LIVE}, \texttt{CORRECTED\_BILL\_YN}, \texttt{OFF\_CYCLE\_YN}, \texttt{BILL\_TP}, \texttt{SOURCE\_CD}}, bill amounts\tablefootnote{\texttt{PREV\_BILL\_AMT}, \texttt{TOTAL\_PAYMENTS}, \texttt{AR\_DUE\_BEFORE\_BILL}, \texttt{AR\_DUE\_AFTER\_BILL}} & account, person \\
-\texttt{financial\_info} [AR00200T] & 20135250$\times$63 & \texttt{bill\_usage\_clean.R} & \texttt{ADJUSTED\_BILL\_AMT}, \texttt{ITEM\_SUMMARY} & account, location \\
+\texttt{financial\_info} [AR00200T] & 20135250$\times$63 & \texttt{bill\_usage\_clean.R} & \texttt{ADJUSTED\_BILL\_AMT}, \texttt{ITEM\_SUMMARY}, \texttt{ITEM\_CATEGORY}, \texttt{ITEM\_TP} & account, location \\
 \texttt{usage\_info} [UM00262T] & 39238143$\times$50 & \texttt{bill\_usage\_clean.R} & consumption character\tablefootnote{\texttt{BILL\_PRINT\_CD}, \texttt{REPORT\_CONTEXT}, \texttt{BC\_DETAIL\_PRORATED\_YN}, \texttt{BC\_ACTIVE\_DAYS}, \texttt{BC\_STANDARD\_DAYS}}, consumption amount\tablefootnote{\texttt{BC\_DETAIL\_AMT}, \texttt{CONS\_LEVEL\_AMT}} & account, location \\
 \texttt{address\_info} [UM00100M] & 198090$\times$58 & \texttt{geocoding\_api.R} & address\tablefootnote{\texttt{HOUSE\_NO}, \texttt{STREET\_PFX\_DIR}, \texttt{STREET\_NM}, \texttt{STREET\_NM\_SFX}, \texttt{CITY}, \texttt{PROVINCE\_CD}, \texttt{POSTAL\_CODE}} & location \\
 \texttt{location\_relation} [UM00120T] & 598021$\times$30 & \texttt{setup\_portland.R} & \multicolumn{1}{c}{-} & account, person, location \\
@@ -180,6 +180,17 @@ We only keep bills that are not canceled, sent in error, audited, or corrected. 
 \subsubsection*{Census Data}
 
 Portland Water Bureau serves Multnomah, Washington, and Clackamas counties in Oregon. For the Census tracts in these counties, we obtain total number of households, household size, unemployment rate, average income, average earnings, average retirement income, average SSI, average cash assistance, average food stamp amount, share of those under the poverty line, and share of races from 2021 American Community Survey. We link the location number to each account using \texttt{location\_relation} data and merge in Census tract information using the geocoded Census tract number from \texttt{address\_info} that link location numbers to the Census tract. We drop bills that do not have a matching location number.
+
+\subsubsection*{Final Bill}
+
+When the household closes the account for reasons such as moving, the final bill is issued, and it ends up in one of the three trajectories:
+\begin{itemize}
+	\item The household pays for the bill.
+	\item The household does not pay the bill. If the unpaid bill is over \$100, Portland sends it to the collection agency.
+	\item If the unpaid bill is below \$100 or fails to be collected by the collection agency for over two years, Portland ``implicitly'' writes off the bill. If the household opens another account in a different location, or the unpaid bill could be assumed by another person responsible (e.g., the owner of the tenant's unpaid bill), the bill goes under that account.
+\end{itemize}
+
+Payments to the final bill cannot be tracked by the bill's generated date in the data. Therefore, we assume that payments that occur after the final bill is generated and before any new bills are generated under the same account will be payments towards the final bill.
 
 After merging the location data, we add in various program participation information (payment arrangements, financial assistance) and flag whether the bill took place when they were enrolled in the program. Similarly, we add in cutoff/reconnect status.
 
@@ -266,7 +277,13 @@ This section discusses various flags in the final panel data where they are rele
 
 While the final bill is already flagged in the raw data (\texttt{BILL\_TP} is \texttt{FINAL}), we do not have a raw indicator of the first bill. Therefore, we flag the first bill when the bill a) first appeared in the raw data, b) no previous bill associated with it, and c) no payment was made.
 
-Sometimes, the owner reoccupies the property after leasing it for a while, or a household returns to the property after living in another place. This comes up in the data as a bill reappearing after the final bill. We flag these as \texttt{RESUME}. Similarly, when the first appeared in the bill data with no previous bill but made non-zero total payments, we flag it as \texttt{RESUME}, assuming that the payment must have been from a previous bill\footnote{This may not always be the case. For instance, an owner may assume a tenant's unpaid bill. This is up as a remaining task.}.
+Sometimes, the owner reoccupies the property after leasing it for a while, or a household returns to the property after living in another place. This comes up in the data as a bill reappearing after the final bill. We flag different scenarios as the following:
+\begin{itemize}
+	\item The household returns back to the same account and assumes the previous outstanding bill. In this case, they have the same account number. This is flagged as \texttt{ASSUME\_ACCOUNT}.
+	\item The household moves to a new location and assumes the outstanding bill on the previous account. In this case, they have the same person number. This is flagged as \texttt{ASSUME\_LOCATION}.
+	\item A household is replaced by another in the same location (an example would be when a tenant moves out and either a new tenant or the owner moves in). In this case, they have the same location number. This is flagged as \texttt{ASSUME\_PERSON}.
+	\item Any other bill that first appeared in the bill data with no previous bill but made non-zero total payments, we flag it as \texttt{RESUME}, assuming that the payment must have been from a previous bill not present in the data.
+\end{itemize}
 
 \subsubsection*{Seniors and Disabled (\texttt{senior\_disabilities})}
 
@@ -285,7 +302,7 @@ From the estimation sample, we propose the following additional ``drops'' for th
 		\item Final bills are off-cycle, and they often do not get sent to any collection activities.
 		\item There is an incentive to keep the final bill below the threshold to avoid collection agencies. However, the shutoff threat does not work for the final bills.
 	\end{itemize}
-	\item Resumed bill (\texttt{BILL\_TP} is \texttt{RESUME}
+	\item Resumed bill (\texttt{BILL\_TP} is \texttt{RESUME})
 	\begin{itemize}
 		\item These are essentially \texttt{FIRST} bills, except they have previous bill amounts (which was the previous \texttt{FINAL} bill). The issue is that the previous bill was off-cycle. Now, a major complication is that there is a large gap before resumption (regardless of whether we drop \texttt{RESUME} or not).
 	\end{itemize}
@@ -302,6 +319,10 @@ From the estimation sample, we propose the following additional ``drops'' for th
 
 Additionally, we propose the following flags to pay close attention but not use them as drop observations:
 \begin{itemize}
+	\item Assumed bills (\texttt{BILL\_TP} is \texttt{ASSUME\_ACCOUNT}, \texttt{ASSUME\_LOCATION}, or \texttt{ASSUME\_PERSON})
+	\begin{itemize}
+		\item They can be tracked from previous activity
+	\end{itemize}
 	\item Seniors and disabled (\texttt{senior\_disabilities} is \texttt{TRUE})
 	\begin{itemize}
 		\item They are not part of the price experiments but represent an important subgroup.
@@ -334,7 +355,7 @@ The table below lists the variables in the final estimation panel dataset:
 \texttt{DUE\_DT} & bill due date & date & \multicolumn{1}{c}{-} \\
 \midrule
 \texttt{SOURCE\_CD} & month number for monthly payment plans & character & \texttt{QB1}, \texttt{QB2}, \texttt{QB3} \\
-\texttt{BILL\_TP} & bill type (first, regular, final, resume, monthly) & character & \texttt{FIRST}, \texttt{REGLR}, \texttt{FINAL}, \texttt{RESUME}, \texttt{MSTMT} \\
+\texttt{BILL\_TP} & bill type (first, regular, final, assume\tablefootnote{account, location, person}, resume, monthly) & character & \texttt{FIRST}, \texttt{REGLR}, \texttt{FINAL}, \texttt{ASSUME}\tablefootnote{\texttt{ASSUME\_ACCOUNT}, \texttt{ASSUME\_LOCATION}, \texttt{ASSUME\_PERSON}}, \texttt{RESUME}, \texttt{MSTMT} \\
 \texttt{OFF\_CYCLE\_YN} & indicator if bill is off the regular billing cycle & logical & \multicolumn{1}{c}{-} \\
 \texttt{CYCLE\_CD} & billing cycle code & character & \texttt{QUARTER}, \texttt{MONTH}, \texttt{BIMONTH} \\
 \midrule
@@ -382,13 +403,5 @@ The table below lists the variables in the final estimation panel dataset:
 \bottomrule 
 \end{tabular}}
 \end{table}
-
-\subsection*{Remaining Work}
-
-\begin{itemize}
-	\item Track ``transferred'' bills (either by \texttt{PERSON\_NO} or \texttt{LOCATION\_NO})
-	\item Update panel dataset with the new \texttt{financial\_info} dataset
-	\item Add any payments to the final bill from the \texttt{financial\_info} dataset
-\end{itemize}
 
 \end{document}

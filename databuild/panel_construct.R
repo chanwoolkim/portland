@@ -2,7 +2,8 @@
 load(file=paste0(working_data_dir, "/analysis_info.RData.gz"))
 load(file=paste0(working_data_dir, "/account_info_analysis.RData"))
 load(file=paste0(working_data_dir, "/financial_assistance_info.RData"))
-load(file=paste0(working_data_dir, "/usage_financial.RData"))
+load(file=paste0(working_data_dir, "/usage_financial.RData.gz"))
+load(file=paste0(working_data_dir, "/financial_info_leftover.RData.gz"))
 load(file=paste0(working_data_dir, "/delinquency_status.RData"))
 load(file=paste0(working_data_dir, "/location_financial.RData"))
 load(file=paste0(working_data_dir, "/geocode_address_info_subset.RData"))
@@ -188,14 +189,84 @@ portland_panel <- rbind(portland_panel_sub, portland_panel, portland_panel_na) %
   select(-account) %>%
   unique()
 
+# Select payments to final bill
+portland_panel_fin <- portland_panel %>%
+  group_by(ACCOUNT_NO) %>%
+  mutate(next_bill_date=lead(BILL_RUN_DT)) %>%
+  filter(BILL_TP=="FINAL") %>%
+  mutate(next_bill_date=if_else(is.na(next_bill_date),
+                                mdy("12/31/2099"),
+                                next_bill_date))
+
+financial_info_leftover <- financial_info_leftover %>%
+  left_join(portland_panel_fin %>%
+              select(ACCOUNT_NO, BILL_RUN_DT, next_bill_date),
+            by=c("ACCOUNT_NO")) %>%
+  mutate(ITEM_DT=mdy(ITEM_DT)) %>%
+  filter(!is.na(BILL_RUN_DT),
+         ITEM_DT>=BILL_RUN_DT,
+         ITEM_DT<next_bill_date) %>%
+  group_by(ACCOUNT_NO, BILL_RUN_DT) %>%
+  summarise(final_payment=sum(ADJUSTED_ITEM_AMT, na.rm=TRUE))
+
+portland_panel <- portland_panel %>%
+  left_join(financial_info_leftover,
+            by=c("ACCOUNT_NO", "BILL_RUN_DT"))
+
 # Add in final bill as debt, 2018-12-31 as 2019-01-01
 portland_panel <- portland_panel %>%
-  mutate(final_writeoff=ifelse(BILL_TP=="FINAL",
-                               current_bill-leftover_debt,
+  mutate(final_payment=ifelse(BILL_TP=="FINAL" & is.na(final_payment),
+                              0,
+                              final_payment),
+         final_writeoff=ifelse(BILL_TP=="FINAL",
+                               current_bill+final_payment,
                                0),
          BILL_RUN_DT=if_else(BILL_RUN_DT==mdy("12/31/2018"),
                              mdy("1/1/2019"),
                              BILL_RUN_DT))
+
+# Flag "assumed" resumption (same account)
+portland_panel <- portland_panel %>%
+  mutate(last_leftover=current_bill+final_payment) %>%
+  arrange(ACCOUNT_NO, BILL_RUN_DT) %>%
+  group_by(ACCOUNT_NO) %>%
+  mutate(lag_leftover=lag(last_leftover)) %>%
+  ungroup() %>%
+  mutate(BILL_TP=
+           case_when(BILL_TP=="RESUME" &
+                       previous_bill==lag_leftover ~ "ASSUME_ACCOUNT",
+                     .default=BILL_TP)) %>%
+  select(-last_leftover, -lag_leftover)
+
+# Flag moves to new location (same person)
+portland_panel <- portland_panel %>%
+  mutate(last_leftover=current_bill+final_payment) %>%
+  arrange(PERSON_NO, BILL_RUN_DT) %>%
+  group_by(PERSON_NO) %>%
+  mutate(lag_ACCOUNT_NO=lag(ACCOUNT_NO),
+         lag_leftover=lag(last_leftover)) %>%
+  ungroup() %>%
+  mutate(BILL_TP=
+           case_when(ACCOUNT_NO!=lag_ACCOUNT_NO & 
+                       BILL_TP=="RESUME" &
+                       previous_bill==lag_leftover ~ "ASSUME_LOCATION",
+                     .default=BILL_TP)) %>%
+  select(-last_leftover, -lag_leftover, -lag_ACCOUNT_NO)
+
+# Flag transfer of responsibility (same location)
+portland_panel <- portland_panel %>%
+  mutate(last_leftover=current_bill+final_payment) %>%
+  arrange(LOCATION_NO, BILL_RUN_DT) %>%
+  group_by(LOCATION_NO) %>%
+  mutate(lag_ACCOUNT_NO=lag(ACCOUNT_NO),
+         lag_leftover=lag(last_leftover)) %>%
+  ungroup() %>%
+  mutate(BILL_TP=
+           case_when(ACCOUNT_NO!=lag_ACCOUNT_NO & 
+                       BILL_TP=="RESUME" &
+                       previous_bill==lag_leftover ~ "ASSUME_PERSON",
+                     .default=BILL_TP)) %>%
+  select(-last_leftover, -lag_leftover, -lag_ACCOUNT_NO)
 
 # Save the dataset
 save(portland_panel,
