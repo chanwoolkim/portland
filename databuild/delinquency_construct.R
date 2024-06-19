@@ -1,114 +1,101 @@
 # LOAD DATA
-load(file=paste0(working_data_dir, "/analysis_info.RData.gz"))
+load(file=paste0(working_data_dir, "/analysis_info.RData"))
 load(file=paste0(working_data_dir, "/account_info_analysis.RData"))
 load(file=paste0(working_data_dir, "/financial_assistance_info.RData"))
 
 # Only consider single family
 account_info_subset <- account_info %>%
-  mutate(ACCOUNT_CLASS_DFLT=trimws(ACCOUNT_CLASS_DFLT),
-         CYCLE_CD=as.numeric(trimws(CYCLE_CD)),
-         CYCLE_CD=case_when(CYCLE_CD %in% 1:64 ~ "QUARTER",
-                            CYCLE_CD %in% 65:85 ~ "MONTH",
-                            CYCLE_CD %in% 90:92 ~ "BIMONTH",
-                            .default="NOINFO")) %>%
-  filter(ACCOUNT_CLASS_DFLT %in% c("RESSF", "ASST")) %>%
-  select(ACCOUNT_NO, CYCLE_CD) %>%
-  unique() %>%
+  mutate(occupancy_code=trimws(occupancy_code),
+         cycle_code=as.numeric(trimws(cycle_code)),
+         cycle_code=case_when(cycle_code %in% 1:64 ~ "QUARTER",
+                              cycle_code %in% 65:85 ~ "MONTH",
+                              cycle_code %in% 90:92 ~ "BIMONTH",
+                              .default="NOINFO")) %>%
+  filter(occupancy_code %in% c("RESSF", "ASST")) %>%
+  select(account_number, cycle_code) %>%
+  distinct() %>%
   mutate(account=TRUE)
 
 # Average payment arrangement amount
 bill_info <- bill_info %>%
-  mutate(PERIOD_FROM_DT=mdy(PERIOD_FROM_DT),
-         PERIOD_TO_DT=mdy(PERIOD_TO_DT),
-         DUE_DT=mdy(DUE_DT),
-         BILL_RUN_DT=mdy(BILL_RUN_DT),
-         OFF_CYCLE_YN=OFF_CYCLE_YN=="TRUE")
+  mutate(start_date=mdy(start_date),
+         end_date=mdy(end_date),
+         due_date=mdy(due_date),
+         bill_date=mdy(bill_date),
+         is_off_cycle=is_off_cycle=="TRUE")
 
 bill_info_filtered <- bill_info %>% 
-  filter(!CANCELED_BILL_YN,
-         !is.na(PERIOD_FROM_DT), 
-         !is.na(PERIOD_TO_DT),
-         !is.na(DUE_DT),
-         !is.na(BILL_RUN_DT),
-         !ERROR_YN,
-         AUDIT_OR_LIVE=="L",
-         BILL_TP %in% c("REGLR", "MSTMT", "FINAL"),
-         SOURCE_CD %in% c("", "QB1", "QB2", "QB3"),
-         !CORRECTED_BILL_YN)
+  filter(!is_canceled,
+         !is.na(start_date), 
+         !is.na(end_date),
+         !is.na(due_date),
+         !is_error,
+         !is_voided,
+         type_code %in% c("REGLR", "MSTMT", "FINAL"),
+         source_code %in% c("", "QB1", "QB2", "QB3"),
+         !is_corrected)
 
 # Those who are not on a payment plan
 no_plan_bill <- bill_info_filtered %>%
-  filter(SOURCE_CD=="") %>%
-  mutate(delinquent=PREV_BILL_AMT+TOTAL_PAYMENTS>0,
-         delinquent=ifelse(is.na(delinquent), FALSE, delinquent),
-         delinquent_amount=ifelse(PREV_BILL_AMT+TOTAL_PAYMENTS>0,
-                                  PREV_BILL_AMT+TOTAL_PAYMENTS,
+  filter(source_code=="") %>%
+  mutate(delinquent=previous_bill_amount+total_payments>0,
+         delinquent_amount=ifelse(previous_bill_amount+total_payments>0,
+                                  previous_bill_amount+total_payments,
                                   0),
-         delinquent_amount=ifelse(is.na(delinquent_amount),
-                                  0,
-                                  delinquent_amount),
-         bill_year=year(BILL_RUN_DT)) %>%
-  select(ACCOUNT_NO, PERSON_NO, DUE_DT, BILL_RUN_DT,
+         bill_year=year(bill_date)) %>%
+  select(account_number, person_number, due_date, bill_date,
          bill_year, delinquent, delinquent_amount,
-         PREV_BILL_AMT, TOTAL_PAYMENTS, AR_DUE_BEFORE_BILL, AR_DUE_AFTER_BILL,
-         SOURCE_CD, BILL_TP, OFF_CYCLE_YN,
-         PERIOD_FROM_DT, PERIOD_TO_DT)
+         previous_bill_amount, total_payments, ar_due_before_bill, ar_due_after_bill,
+         source_code, type_code, is_off_cycle,
+         start_date, end_date)
 
 # Those on a payment plan
 plan_bill <- bill_info_filtered %>%
-  filter(SOURCE_CD!="") %>%
-  mutate(delinquent=AR_DUE_BEFORE_BILL>0,
-         delinquent=ifelse(is.na(delinquent), FALSE, delinquent),
-         delinquent_amount=ifelse(AR_DUE_BEFORE_BILL>0,
-                                  AR_DUE_BEFORE_BILL,
+  filter(source_code!="") %>%
+  mutate(delinquent=ar_due_before_bill>0,
+         delinquent_amount=ifelse(ar_due_before_bill>0,
+                                  ar_due_before_bill,
                                   0),
-         delinquent_amount=ifelse(is.na(delinquent_amount),
-                                  0,
-                                  delinquent_amount),
-         bill_year=year(BILL_RUN_DT)) %>%
-  select(ACCOUNT_NO, PERSON_NO, DUE_DT, BILL_RUN_DT,
+         bill_year=year(bill_date)) %>%
+  select(account_number, person_number, due_date, bill_date,
          bill_year, delinquent, delinquent_amount,
-         PREV_BILL_AMT, TOTAL_PAYMENTS, AR_DUE_BEFORE_BILL, AR_DUE_AFTER_BILL,
-         SOURCE_CD, BILL_TP, OFF_CYCLE_YN,
-         PERIOD_FROM_DT, PERIOD_TO_DT)
+         previous_bill_amount, total_payments, ar_due_before_bill, ar_due_after_bill,
+         source_code, type_code, is_off_cycle,
+         start_date, end_date)
 
 delinquency_status <- rbind(no_plan_bill, plan_bill) %>%
-  mutate(ACCOUNT_NO=as.character(ACCOUNT_NO)) %>%
   left_join(account_info_subset,
-            by="ACCOUNT_NO") %>%
-  filter(account, CYCLE_CD!="NOINFO")
+            by="account_number") %>%
+  filter(account, cycle_code!="NOINFO")
 
 # Payment arrangement amount
 payment_arrange_amount <- payment_arrangement_info %>%
-  mutate(AMOUNT_DUE=as.numeric(AMOUNT_DUE),
-         OUTSTANDING_AMT=as.numeric(OUTSTANDING_AMT),
-         amount_paid=AMOUNT_DUE-OUTSTANDING_AMT) %>%
-  group_by(PAY_ARRANGEMENT_REF) %>%
-  summarise(amount_due=sum(AMOUNT_DUE, na.rm=TRUE),
-            amount_paid=sum(amount_paid, na.rm=TRUE),
-            amount_outstanding=sum(OUTSTANDING_AMT, na.rm=TRUE))
+  group_by(payment_plan_id) %>%
+  summarise(amount_due=sum(amount, na.rm=TRUE),
+            amount_outstanding=sum(outstanding_amount, na.rm=TRUE)) %>%
+  ungroup() %>%
+  mutate(amount_paid=amount_due-amount_outstanding)
 
 payment_arrange_amount <- payment_arrangement %>%
-  filter(!grepl("^[0-9]", STATUS_CD)) %>%
-  mutate(STATUS_CD=trimws(STATUS_CD),
-         STATUS_CD=ifelse(STATUS_CD=="T", "T", "P"),
-         payment_arrange_start=mdy(START_DT),
-         payment_arrange_end=mdy(END_DT),
+  filter(!grepl("^[0-9]", status_code)) %>%
+  mutate(status_code=trimws(status_code),
+         status_code=ifelse(status_code=="T", "T", "P"),
+         payment_arrange_start=mdy(start_date),
+         payment_arrange_end=mdy(end_date),
          payment_arrange_start_year=year(payment_arrange_start),
-         payment_arrange_end_year=year(payment_arrange_end),
-         ARRANGEMENT_AMT=as.numeric(ARRANGEMENT_AMT)) %>%
-  right_join(payment_arrange_amount, by="PAY_ARRANGEMENT_REF") %>%
+         payment_arrange_end_year=year(payment_arrange_end)) %>%
+  right_join(payment_arrange_amount, by="payment_plan_id") %>%
   filter(payment_arrange_start_year>=2019 |
            payment_arrange_end_year>=2019)
 
 # Payment arrangement
 payment_arrange_time <- payment_arrange_amount %>%
-  group_by(SS_ACCOUNT_NO) %>%
+  group_by(account_number) %>%
   arrange(payment_arrange_start, by_group=TRUE) %>% 
   mutate(indx=c(0, cumsum(as.numeric(lead(payment_arrange_start)) >
                             cummax(as.numeric(payment_arrange_end)))[-n()])) %>%
-  group_by(SS_ACCOUNT_NO, indx) %>%
-  summarise(terminated=any(STATUS_CD=="T"),
+  group_by(account_number, indx) %>%
+  summarise(terminated=any(status_code=="T"),
             payment_arrange_start=min(payment_arrange_start), 
             payment_arrange_end=max(payment_arrange_end)) %>%
   select(-indx) %>%
@@ -121,7 +108,7 @@ payment_arrange_time <- payment_arrange_amount %>%
                                     payment_arrange_end))
 
 payment_arrange_time_count <- payment_arrange_time %>%
-  group_by(SS_ACCOUNT_NO) %>%
+  group_by(account_number) %>%
   summarise(count=n())
 
 payment_arrange_time_count_1 <- payment_arrange_time_count %>%
@@ -131,24 +118,24 @@ payment_arrange_time_count_above_1 <- payment_arrange_time_count %>%
   filter(count>1)
 
 payment_arrange_time_above_1 <- payment_arrange_time %>%
-  filter(SS_ACCOUNT_NO %in% payment_arrange_time_count_above_1$SS_ACCOUNT_NO)
+  filter(account_number %in% payment_arrange_time_count_above_1$account_number)
 
 delinquency_status_none <- delinquency_status %>%
-  filter(!(ACCOUNT_NO %in% c(payment_arrange_time_count_above_1$SS_ACCOUNT_NO,
-                             payment_arrange_time_count_1$SS_ACCOUNT_NO))) %>%
+  filter(!(account_number %in% c(payment_arrange_time_count_above_1$account_number,
+                                 payment_arrange_time_count_1$account_number))) %>%
   mutate(payment_arrange=FALSE,
          payment_arrange_status=NA)
 
 delinquency_status_sub <- delinquency_status %>%
-  filter(ACCOUNT_NO %in% payment_arrange_time_count_above_1$SS_ACCOUNT_NO)
+  filter(account_number %in% payment_arrange_time_count_above_1$account_number)
 
 delinquency_status_rest <- delinquency_status %>%
-  filter(ACCOUNT_NO %in% payment_arrange_time_count_1$SS_ACCOUNT_NO) %>%
+  filter(account_number %in% payment_arrange_time_count_1$account_number) %>%
   left_join(payment_arrange_time %>%
-              filter(SS_ACCOUNT_NO %in% payment_arrange_time_count_1$SS_ACCOUNT_NO),
-            by=c("ACCOUNT_NO"="SS_ACCOUNT_NO")) %>%
+              filter(account_number %in% payment_arrange_time_count_1$account_number),
+            by=c("account_number"="account_number")) %>%
   rowwise() %>%
-  mutate(payment_arrange=between(BILL_RUN_DT, payment_arrange_start, payment_arrange_end),
+  mutate(payment_arrange=between(bill_date, payment_arrange_start, payment_arrange_end),
          payment_arrange_status=ifelse(payment_arrange, terminated, NA)) %>%
   ungroup() %>%
   mutate(payment_arrange=ifelse(is.na(payment_arrange), FALSE, payment_arrange)) %>%
@@ -156,20 +143,20 @@ delinquency_status_rest <- delinquency_status %>%
 
 delinquency_status_sub <- delinquency_status_sub %>%
   rowwise() %>%
-  mutate(payment_arrange=any(BILL_RUN_DT %between%
+  mutate(payment_arrange=any(bill_date %between%
                                list(subset(payment_arrange_time_above_1,
-                                           SS_ACCOUNT_NO==ACCOUNT_NO)$payment_arrange_start,
+                                           account_number==account_number)$payment_arrange_start,
                                     subset(payment_arrange_time_above_1,
-                                           SS_ACCOUNT_NO==ACCOUNT_NO)$payment_arrange_end)),
+                                           account_number==account_number)$payment_arrange_end)),
          payment_arrange_status=
            ifelse(payment_arrange,
                   subset(payment_arrange_time_above_1,
-                         SS_ACCOUNT_NO==ACCOUNT_NO)$terminated[
-                           which(BILL_RUN_DT %between%
+                         account_number==account_number)$terminated[
+                           which(bill_date %between%
                                    list(subset(payment_arrange_time_above_1,
-                                               SS_ACCOUNT_NO==ACCOUNT_NO)$payment_arrange_start,
+                                               account_number==account_number)$payment_arrange_start,
                                         subset(payment_arrange_time_above_1,
-                                               SS_ACCOUNT_NO==ACCOUNT_NO)$payment_arrange_end))],
+                                               account_number==account_number)$payment_arrange_end))],
                   NA)) %>%
   ungroup()
 
@@ -179,20 +166,19 @@ delinquency_status <- rbind(delinquency_status_sub,
 
 # Attach financial info onto payment arrangement
 financial_assist_account <- financial_assist %>%
-  mutate(financial_assist_start=mdy(EFFECTIVE_DT),
-         financial_assist_end=mdy(EXPIRY_DT)) %>%
+  mutate(financial_assist_start=mdy(effective_date),
+         financial_assist_end=mdy(expiration_date)) %>%
   filter(year(financial_assist_start)>=2019 |
            year(financial_assist_end)>=2019) %>%
-  select(ACCOUNT_NO, financial_assist_start, financial_assist_end)
+  select(account_number, financial_assist_start, financial_assist_end)
 
 # Financial assistance
 financial_assist_time <- financial_assist_account %>%
-  mutate(SS_ACCOUNT_NO=as.character(ACCOUNT_NO)) %>%
-  group_by(SS_ACCOUNT_NO) %>%
+  group_by(account_number) %>%
   arrange(financial_assist_start, by_group=TRUE) %>% 
   mutate(indx=c(0, cumsum(as.numeric(lead(financial_assist_start)) >
                             cummax(as.numeric(financial_assist_end)))[-n()])) %>%
-  group_by(SS_ACCOUNT_NO, indx) %>%
+  group_by(account_number, indx) %>%
   summarise(financial_assist_start=min(financial_assist_start), 
             financial_assist_end=max(financial_assist_end)) %>%
   select(-indx) %>%
@@ -205,7 +191,7 @@ financial_assist_time <- financial_assist_account %>%
                                      financial_assist_end))
 
 financial_assist_time_count <- financial_assist_time %>%
-  group_by(SS_ACCOUNT_NO) %>%
+  group_by(account_number) %>%
   summarise(count=n())
 
 financial_assist_time_count_1 <- financial_assist_time_count %>%
@@ -215,34 +201,34 @@ financial_assist_time_count_above_1 <- financial_assist_time_count %>%
   filter(count>1)
 
 financial_assist_time_above_1 <- financial_assist_time %>%
-  filter(SS_ACCOUNT_NO %in% financial_assist_time_count_above_1$SS_ACCOUNT_NO)
+  filter(account_number %in% financial_assist_time_count_above_1$account_number)
 
 delinquency_status_none <- delinquency_status %>%
-  filter(!(ACCOUNT_NO %in% c(financial_assist_time_count_above_1$SS_ACCOUNT_NO,
-                             financial_assist_time_count_1$SS_ACCOUNT_NO))) %>%
+  filter(!(account_number %in% c(financial_assist_time_count_above_1$account_number,
+                                 financial_assist_time_count_1$account_number))) %>%
   mutate(financial_assist=FALSE)
 
 delinquency_status_sub <- delinquency_status %>%
-  filter(ACCOUNT_NO %in% financial_assist_time_count_above_1$SS_ACCOUNT_NO)
+  filter(account_number %in% financial_assist_time_count_above_1$account_number)
 
 delinquency_status_rest <- delinquency_status %>%
-  filter(ACCOUNT_NO %in% financial_assist_time_count_1$SS_ACCOUNT_NO) %>%
+  filter(account_number %in% financial_assist_time_count_1$account_number) %>%
   left_join(financial_assist_time %>%
-              filter(SS_ACCOUNT_NO %in% financial_assist_time_count_1$SS_ACCOUNT_NO),
-            by=c("ACCOUNT_NO"="SS_ACCOUNT_NO")) %>%
+              filter(account_number %in% financial_assist_time_count_1$account_number),
+            by=c("account_number"="account_number")) %>%
   rowwise() %>%
-  mutate(financial_assist=between(BILL_RUN_DT, financial_assist_start, financial_assist_end)) %>%
+  mutate(financial_assist=between(bill_date, financial_assist_start, financial_assist_end)) %>%
   ungroup() %>%
   mutate(financial_assist=ifelse(is.na(financial_assist), FALSE, financial_assist)) %>%
   select(-financial_assist_start, -financial_assist_end)
 
 delinquency_status_sub <- delinquency_status_sub %>%
   rowwise() %>%
-  mutate(financial_assist=any(BILL_RUN_DT %between%
+  mutate(financial_assist=any(bill_date %between%
                                 list(subset(financial_assist_time_above_1,
-                                            SS_ACCOUNT_NO==ACCOUNT_NO)$financial_assist_start,
+                                            account_number==account_number)$financial_assist_start,
                                      subset(financial_assist_time_above_1,
-                                            SS_ACCOUNT_NO==ACCOUNT_NO)$financial_assist_end))) %>%
+                                            account_number==account_number)$financial_assist_end))) %>%
   ungroup()
 
 delinquency_status <- rbind(delinquency_status_sub,
@@ -250,39 +236,39 @@ delinquency_status <- rbind(delinquency_status_sub,
                             delinquency_status_none)
 
 # Cutoff/reconnect
-cutoff_reconnect <-
-  left_join(cutoff_info %>%
-              mutate(CUTOFF_DATE=mdy(EFFECTIVE_DT)) %>%
-              arrange(ACCOUNT_NO, PERSON_NO, LOCATION_NO, CUTOFF_DATE) %>%
-              group_by(ACCOUNT_NO, PERSON_NO, LOCATION_NO) %>%
-              mutate(id=row_number()) %>%
-              ungroup() %>%
-              select(ACCOUNT_NO, PERSON_NO, LOCATION_NO, CUTOFF_DATE, id),
-            reconnect_info %>%
-              mutate(RECONNECT_DATE=mdy(EFFECTIVE_DT)) %>%
-              arrange(ACCOUNT_NO, PERSON_NO, LOCATION_NO, RECONNECT_DATE) %>%
-              group_by(ACCOUNT_NO, PERSON_NO, LOCATION_NO) %>%
-              mutate(id=row_number()) %>%
-              ungroup() %>%
-              select(ACCOUNT_NO, PERSON_NO, LOCATION_NO, RECONNECT_DATE, id),
-            by=c("ACCOUNT_NO", "PERSON_NO", "LOCATION_NO", "id")) %>%
-  select(-id) %>%
-  arrange(ACCOUNT_NO, PERSON_NO, LOCATION_NO, CUTOFF_DATE)
+cutoff_reconnect <- cutoff_info %>%
+  mutate(effective_date=mdy(effective_date)) %>%
+  arrange(account_number, effective_date) %>%
+  group_by(account_number) %>%
+  mutate(lead_cutoff=lead(request_type),
+         lead_date=lead(effective_date)) %>%
+  filter(request_type=="CUTOF") %>%
+  ungroup()
 
-cutoff_reconnect$CUTOFF_DATE[is.na(cutoff_reconnect$CUTOFF_DATE)] <-
+cutoff_reconnect$lead_date[cutoff_reconnect$lead_cutoff=="CUTOF"] <- NA
+cutoff_reconnect$lead_cutoff[cutoff_reconnect$lead_cutoff=="CUTOF"] <- NA
+
+cutoff_reconnect <- cutoff_reconnect %>%
+  select(-action_id, -action_code, 
+         -request_number, -request_type,
+         -reveived_date, -scheduled_timestamp,
+         -resolution_code, -lead_cutoff) %>%
+  rename(cutoff_date=effective_date,
+         reconnect_date=lead_date)
+
+cutoff_reconnect$cutoff_date[is.na(cutoff_reconnect$cutoff_date)] <-
   "2000-01-01"
-cutoff_reconnect$RECONNECT_DATE[is.na(cutoff_reconnect$RECONNECT_DATE)] <-
+cutoff_reconnect$reconnect_date[is.na(cutoff_reconnect$reconnect_date)] <-
   "2099-12-31"
 
 cutoff_time <- cutoff_reconnect %>%
-  mutate(SS_ACCOUNT_NO=as.character(ACCOUNT_NO)) %>%
-  group_by(SS_ACCOUNT_NO) %>%
-  arrange(CUTOFF_DATE, by_group=TRUE) %>% 
-  mutate(indx=c(0, cumsum(as.numeric(lead(CUTOFF_DATE)) >
-                            cummax(as.numeric(RECONNECT_DATE)))[-n()])) %>%
-  group_by(SS_ACCOUNT_NO, indx) %>%
-  summarise(cutoff_start=min(CUTOFF_DATE), 
-            cutoff_end=max(RECONNECT_DATE)) %>%
+  group_by(account_number) %>%
+  arrange(cutoff_date, by_group=TRUE) %>% 
+  mutate(indx=c(0, cumsum(as.numeric(lead(cutoff_date)) >
+                            cummax(as.numeric(reconnect_date)))[-n()])) %>%
+  group_by(account_number, indx) %>%
+  summarise(cutoff_start=min(cutoff_date), 
+            cutoff_end=max(reconnect_date)) %>%
   select(-indx) %>%
   ungroup() %>%
   mutate(cutoff_start=ifelse(is.na(cutoff_start),
@@ -293,7 +279,7 @@ cutoff_time <- cutoff_reconnect %>%
                            cutoff_end))
 
 cutoff_time_count <- cutoff_time %>%
-  group_by(SS_ACCOUNT_NO) %>%
+  group_by(account_number) %>%
   summarise(count=n())
 
 cutoff_time_count_1 <- cutoff_time_count %>%
@@ -303,56 +289,56 @@ cutoff_time_count_above_1 <- cutoff_time_count %>%
   filter(count>1)
 
 cutoff_time_above_1 <- cutoff_time %>%
-  filter(SS_ACCOUNT_NO %in% cutoff_time_count_above_1$SS_ACCOUNT_NO)
+  filter(account_number %in% cutoff_time_count_above_1$account_number)
 
 delinquency_status_none <- delinquency_status %>%
-  filter(!(ACCOUNT_NO %in% c(cutoff_time_count_above_1$SS_ACCOUNT_NO,
-                             cutoff_time_count_1$SS_ACCOUNT_NO))) %>%
+  filter(!(account_number %in% c(cutoff_time_count_above_1$account_number,
+                                 cutoff_time_count_1$account_number))) %>%
   mutate(cutoff=FALSE)
 
 delinquency_status_sub <- delinquency_status %>%
-  filter(ACCOUNT_NO %in% cutoff_time_count_above_1$SS_ACCOUNT_NO)
+  filter(account_number %in% cutoff_time_count_above_1$account_number)
 
 delinquency_status_rest <- delinquency_status %>%
-  filter(ACCOUNT_NO %in% cutoff_time_count_1$SS_ACCOUNT_NO) %>%
+  filter(account_number %in% cutoff_time_count_1$account_number) %>%
   left_join(cutoff_time %>%
-              filter(SS_ACCOUNT_NO %in% cutoff_time_count_1$SS_ACCOUNT_NO),
-            by=c("ACCOUNT_NO"="SS_ACCOUNT_NO")) %>%
+              filter(account_number %in% cutoff_time_count_1$account_number),
+            by=c("account_number"="account_number")) %>%
   rowwise() %>%
-  mutate(cutoff=between(BILL_RUN_DT, cutoff_start, cutoff_end)) %>%
+  mutate(cutoff=between(bill_date, cutoff_start, cutoff_end)) %>%
   ungroup() %>%
   mutate(cutoff=ifelse(is.na(cutoff), FALSE, cutoff)) %>%
   select(-cutoff_start, -cutoff_end)
 
 delinquency_status_sub <- delinquency_status_sub %>%
   rowwise() %>%
-  mutate(cutoff=any(BILL_RUN_DT %between%
+  mutate(cutoff=any(bill_date %between%
                       list(subset(cutoff_time_above_1,
-                                  SS_ACCOUNT_NO==ACCOUNT_NO)$cutoff_start,
+                                  account_number==account_number)$cutoff_start,
                            subset(cutoff_time_above_1,
-                                  SS_ACCOUNT_NO==ACCOUNT_NO)$cutoff_end))) %>%
+                                  account_number==account_number)$cutoff_end))) %>%
   ungroup()
 
 delinquency_status <- rbind(delinquency_status_sub,
                             delinquency_status_rest,
                             delinquency_status_none) %>%
-  unique()
+  distinct()
 
 # Flag first bill and resumption
 delinquency_status <- delinquency_status %>%
-  arrange(ACCOUNT_NO, BILL_RUN_DT) %>%
-  group_by(ACCOUNT_NO) %>%
+  arrange(account_number, bill_date) %>%
+  group_by(account_number) %>%
   mutate(rnum=row_number(),
-         lag_final=lag(BILL_TP)) %>%
+         lag_final=lag(type_code)) %>%
   ungroup() %>%
-  mutate(lag_PREV_BILL=lag(PREV_BILL_AMT)) %>%
-  filter(!(lag_PREV_BILL==PREV_BILL_AMT & lag_final=="FINAL" & BILL_TP=="FINAL")) %>%
-  mutate(BILL_TP=
-           case_when(BILL_TP!="FINAL" & PREV_BILL_AMT<=0 & TOTAL_PAYMENTS>=0 & rnum==1 ~ "FIRST",
-                     BILL_TP!="FINAL" & lag_final=="FINAL" & !is.na(lag_final) ~ "RESUME",
-                     BILL_TP!="FINAL" & PREV_BILL_AMT<=0 & TOTAL_PAYMENTS<0 & rnum==1 ~ "RESUME",
-                     .default=BILL_TP)) %>%
-  select(-lag_final, -lag_PREV_BILL, -rnum)
+  mutate(lag_previous_bill_amount=lag(previous_bill_amount)) %>%
+  filter(!(lag_previous_bill_amount==previous_bill_amount & lag_final=="FINAL" & type_code=="FINAL")) %>%
+  mutate(type_code=
+           case_when(type_code!="FINAL" & previous_bill_amount<=0 & total_payments>=0 & rnum==1 ~ "FIRST",
+                     type_code!="FINAL" & lag_final=="FINAL" & !is.na(lag_final) ~ "RESUME",
+                     type_code!="FINAL" & previous_bill_amount<=0 & total_payments<0 & rnum==1 ~ "RESUME",
+                     .default=type_code)) %>%
+  select(-lag_final, -lag_previous_bill_amount, -rnum)
 
 # Save the dataset
 save(delinquency_status,

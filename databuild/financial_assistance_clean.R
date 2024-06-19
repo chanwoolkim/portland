@@ -1,31 +1,28 @@
 # Financial assistance information
 
-load(file=paste0(working_data_dir, "/analysis_info.RData.gz"))
+load(file=paste0(working_data_dir, "/analysis_info.RData"))
 
 
 # Payment arrangement amount ####
 payment_arrange_amount <- payment_arrangement_info %>%
-  mutate(AMOUNT_DUE=as.numeric(AMOUNT_DUE),
-         OUTSTANDING_AMT=as.numeric(OUTSTANDING_AMT),
-         amount_paid=AMOUNT_DUE-OUTSTANDING_AMT) %>%
-  group_by(PAY_ARRANGEMENT_REF) %>%
-  summarise(amount_due=sum(AMOUNT_DUE, na.rm=TRUE),
-            amount_paid=sum(amount_paid, na.rm=TRUE),
-            amount_outstanding=sum(OUTSTANDING_AMT, na.rm=TRUE))
+  group_by(payment_plan_id) %>%
+  summarise(amount_due=sum(amount, na.rm=TRUE),
+            amount_outstanding=sum(outstanding_amount, na.rm=TRUE)) %>%
+  ungroup() %>%
+  mutate(amount_paid=amount_due-amount_outstanding)
 
 payment_arrange_amount <- payment_arrangement %>%
-  filter(!grepl("^[0-9]", STATUS_CD)) %>%
-  mutate(STATUS_CD=trimws(STATUS_CD),
-         STATUS_CD=ifelse(STATUS_CD=="T", "T", "P"),
-         payment_arrange_start=mdy(START_DT),
-         payment_arrange_end=mdy(END_DT),
+  filter(!grepl("^[0-9]", status_code)) %>%
+  mutate(status_code=trimws(status_code),
+         status_code=ifelse(status_code=="T", "T", "P"),
+         payment_arrange_start=mdy(start_date),
+         payment_arrange_end=mdy(end_date),
          payment_arrange_start_year=year(payment_arrange_start),
-         payment_arrange_end_year=year(payment_arrange_end),
-         ARRANGEMENT_AMT=as.numeric(ARRANGEMENT_AMT)) %>%
-  right_join(payment_arrange_amount, by="PAY_ARRANGEMENT_REF") %>%
+         payment_arrange_end_year=year(payment_arrange_end)) %>%
+  right_join(payment_arrange_amount, by="payment_plan_id") %>%
   filter(payment_arrange_start_year>=2019 |
            payment_arrange_end_year>=2019) %>%
-  group_by(SS_ACCOUNT_NO) %>%
+  group_by(account_number) %>%
   summarise(arrange_amount_due=sum(amount_due, na.rm=TRUE),
             arrange_amount_paid=sum(amount_paid, na.rm=TRUE),
             arrange_amount_terminated=sum(amount_outstanding, na.rm=TRUE)) %>%
@@ -33,11 +30,8 @@ payment_arrange_amount <- payment_arrangement %>%
 
 # Payment arrangement by year
 payment_arrange_by_year <- payment_arrangement %>%
-  filter(grepl("/", START_DT),
-         grepl("/", END_DT)) %>%
-  mutate(ACCOUNT_NO=as.character(SS_ACCOUNT_NO),
-         payment_arrange_start=mdy(START_DT),
-         payment_arrange_end=mdy(END_DT)) %>%
+  mutate(payment_arrange_start=mdy(start_date),
+         payment_arrange_end=mdy(end_date)) %>%
   rowwise() %>%
   mutate(payment_arrange_2019=
            between(2019,
@@ -59,7 +53,7 @@ payment_arrange_by_year <- payment_arrangement %>%
            between(2023,
                    year(payment_arrange_start),
                    year(payment_arrange_end))) %>%
-  group_by(ACCOUNT_NO) %>%
+  group_by(account_number) %>%
   summarise(payment_arrange_2019=sum(payment_arrange_2019),
             payment_arrange_2020=sum(payment_arrange_2020),
             payment_arrange_2021=sum(payment_arrange_2021),
@@ -74,46 +68,35 @@ payment_arrange_by_year <- payment_arrangement %>%
 
 
 # Financial assistance by LINC tier ####
-financial_assist_detail <- list.files(path=data_dir,
-                                      pattern="Linc Data - .*\\.csv",
-                                      full.names=TRUE) %>% 
-  lapply(read_csv, col_types=cols(.default="c")) %>%
-  bind_rows
+financial_assist_csv <- financial_assist_detail %>%
+  filter(grepl("/", bill_date)) %>%
+  mutate(bill_date=mdy(bill_date),
+         linc_expiry_date=mdy(linc_expiry_date))
 
-financial_assist_xlsx <- list.files(path=data_dir,
-                                    pattern="Linc Data - .*\\.xlsx",
-                                    full.names=TRUE) %>% 
-  lapply(read_xlsx) %>%
-  bind_rows
+financial_assist_xlsx <- financial_assist_detail %>%
+  filter(!grepl("/", bill_date)) %>%
+  mutate_at(c("bill_date", "linc_effective_date", "linc_expiry_date", "date_last_updated"),
+            function(x) {as_date(as.numeric(x), origin="1900-01-01")})
 
-financial_assist_detail <- rbind(financial_assist_detail %>%
-                                   mutate(BILL_DT=mdy(BILL_DT),
-                                          LINC_EFFECTIVE_DATE=mdy(LINC_EFFECTIVE_DATE),
-                                          LINC_EXPIRY_DATE=mdy(LINC_EXPIRY_DATE)),
-                                 financial_assist_xlsx %>%
-                                   mutate(BILL_DT=ymd(BILL_DT),
-                                          LINC_EFFECTIVE_DATE=ymd(LINC_EFFECTIVE_DATE),
-                                          LINC_EXPIRY_DATE=ymd(LINC_EXPIRY_DATE)))
-
-financial_assist_detail <- financial_assist_detail %>%
-  mutate(bill_year=year(BILL_DT),
-         linc_expiry_year=year(LINC_EXPIRY_DATE),
+financial_assist_detail <- rbind(financial_assist_csv, financial_assist_xlsx) %>%
+  mutate(bill_year=year(bill_date),
+         linc_expiry_year=year(linc_expiry_date),
          senior_disabilities=linc_expiry_year>2050) %>%
-  mutate_at(c("LOCATION_NO",
-              "NET_BILL_AMT", "BILLED_AMT_BEFORE_DIS", "LINC_DISCOUNT_AMT",
-              "WATER_CONS", "SEWER_CONS",
-              "PENALTY_FEES", "PENALTY_FEES_REVERSED",
-              "CRISIS_VOUCHER_AMT"),
+  mutate_at(c("location_number",
+              "net_bill_amount", "billed_amount_before_discount", "linc_discount_amount",
+              "water_consumption", "sewer_consumption",
+              "penalty_fees", "penalty_fees_reversed",
+              "crisis_voucher_amount"),
             as.numeric)
 
 linc_info <- financial_assist_detail %>%
-  mutate(tier=as.numeric(gsub("Tier", "", LINC_TIER_TYPE))) %>%
-  group_by(LOCATION_NO, bill_year) %>%
+  mutate(tier=as.numeric(gsub("Tier", "", linc_tier_type))) %>%
+  group_by(location_number, bill_year) %>%
   summarise(tier=max(tier),
-            discount_amount=(-1)*sum(LINC_DISCOUNT_AMT, na.rm=TRUE),
-            crisis_voucher=(-1)*sum(CRISIS_VOUCHER_AMT, na.rm=TRUE)) %>%
+            discount_amount=(-1)*sum(linc_discount_amount, na.rm=TRUE),
+            crisis_voucher=(-1)*sum(crisis_voucher_amount, na.rm=TRUE)) %>%
   ungroup() %>%
-  pivot_wider(id_cols=LOCATION_NO, 
+  pivot_wider(id_cols=location_number, 
               names_from=bill_year, 
               values_from=c("tier",
                             "discount_amount",
@@ -122,9 +105,8 @@ linc_info <- financial_assist_detail %>%
 
 # Financial assistance by year
 financial_assist_by_year <- financial_assist %>%
-  mutate(ACCOUNT_NO=as.character(ACCOUNT_NO),
-         financial_assist_start=mdy(EFFECTIVE_DT),
-         financial_assist_end=mdy(EXPIRY_DT)) %>%
+  mutate(financial_assist_start=mdy(effective_date),
+         financial_assist_end=mdy(expiration_date)) %>%
   rowwise() %>%
   mutate(financial_assist_2019=
            between(2019,
@@ -146,7 +128,7 @@ financial_assist_by_year <- financial_assist %>%
            between(2023,
                    year(financial_assist_start),
                    year(financial_assist_end))) %>%
-  group_by(ACCOUNT_NO) %>%
+  group_by(account_number) %>%
   summarise(financial_assist_2019=sum(financial_assist_2019),
             financial_assist_2020=sum(financial_assist_2020),
             financial_assist_2021=sum(financial_assist_2021),
