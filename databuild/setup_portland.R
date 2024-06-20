@@ -1,6 +1,15 @@
 # Load data ####
+# Helper function
+force_bind <- function(df1, df2) {
+  colnames(df2) <- colnames(df1)
+  df <- bind_rows(df1, df2)
+  return(df)
+}
+
 # Location relation
-location_relation <- read.csv(file=paste0(data_dir, "/UM00120T.csv"))
+location_relation <-
+  read_csv(file=paste0(data_dir,
+                       "/UM00120T Servus 01012019-06132024.csv"))
 
 location_relation <- location_relation %>%
   rename(location_number=LOCATION_ID,
@@ -15,16 +24,22 @@ location_relation <- location_relation %>%
          date_created=CREATED,
          date_updated=UPDATED)
 
-location_account_relation <- read.csv(file=paste0(data_dir, "/UM00250T.csv"))
-
-location_account_relation <- location_account_relation %>%
-  rename(location_number=LOCATION_ID,
-         account_number=ACCOUNT_NUMBER,
-         date_created=CREATED,
-         date_updated=UPDATED)
+location_account_relation <- 
+  force_bind(read_csv((list.files(data_dir, recursive=TRUE, full.names=TRUE) %>% 
+                        str_subset("UM00250T"))[1]) %>%
+              rename(location_number=LOCATION_NO,
+                     account_number=ACCOUNT_NO,
+                     date_created=CREATED,
+                     date_updated=UPDATED),
+            (list.files(data_dir, recursive=TRUE, full.names=TRUE) %>% 
+               str_subset("UM00250T"))[-1] %>%
+              lapply(read_csv, col_names=FALSE) %>%
+              bind_rows)
 
 # Address info
-address_info <- read.csv(file=paste0(data_dir, "/UM00100M.csv"))
+address_info <-
+  read_csv(file=paste0(data_dir, 
+                       "/UM00100M Servus 01012019-06132024.csv"))
 
 address_info <- address_info %>%
   rename(location_number=LOCATION_ID,
@@ -45,7 +60,9 @@ address_info <- address_info %>%
          date_updated=UPDATED)
 
 # Account info
-account_info <- read.csv(file=paste0(data_dir, "/UM00200M.csv"))
+account_info <- 
+  read_csv(file=paste0(data_dir, 
+                       "/UM00200M Servus 01012019-06132024.csv"))
 
 account_info <- account_info %>%
   rename(account_number=ACCOUNT_NUMBER,
@@ -76,45 +93,48 @@ account_info <- account_info %>%
          date_updated=UPDATED)
 
 # Financial info
-financial_info <- list.files(data_dir, full.names=TRUE) %>% 
-  str_subset("AR00200T") %>%
-  lapply(read.csv) %>%
-  bind_rows
-
-financial_info <- financial_info %>%
-  rename(transaction_number=TRANSACTION_ID,
-         subsystem_id=SUBSYSTEM_ID,
-         account_number=ACCOUNT_NUMBER,
-         transaction_type=TRANSACTION_TYPE,
-         transaction_code=TRANSACTION_CODE,
-         summary=SUMMARY,
-         transaction_date=TRANSACTION_DATE,
-         matched_date=MATCHED_DATE,
-         last_matched_date=LAST_MATCHED_DATE,
-         amount=AMOUNT,
-         remaining_amount=REMAINING_AMOUNT,
-         status_code=STATUS_CODE,
-         source_reference=SOURCE_REFERENCE,
-         source_spec_2=SOURCE_SPEC2,
-         source_spec_3=SOURCE_SPEC3,
-         bill_reference=SS_BILL_REF,
-         bill_date_1=BILL_DATE_1,
-         bill_date_2=BILL_DATE_2,
-         bill_date_3=BILL_DATE_3,
-         bill_date=BILL_DATE,
-         sec_code=SEC_CODE,
-         taxable_amount=TAXABLE_AMOUNT,
-         is_cutoff=IS_CUTOFF,
-         is_subject_to_interest=IS_SUBJECT_TO_INT,
-         adjusted_amount=ADJUSTED_AMOUNT,
-         is_adjust_allowed=IS_ADJUST_ALLOWED,
-         location_number=LOCATION_ID,
-         due_date=DUE_DATE,
-         date_created=CREATED,
-         date_updated=UPDATED)
+financial_info <-
+  force_bind(read_csv((list.files(data_dir, recursive=TRUE, full.names=TRUE) %>% 
+                        str_subset("AR00200T"))[1]) %>%
+              rename(transaction_number=TRANSACTION_ID,
+                     subsystem_id=SUBSYSTEM_ID,
+                     account_number=ACCOUNT_NUMBER,
+                     transaction_type=TRANSACTION_TYPE,
+                     transaction_code=TRANSACTION_CODE,
+                     summary=SUMMARY,
+                     transaction_date=TRANSACTION_DATE,
+                     matched_date=MATCHED_DATE,
+                     last_matched_date=LAST_MATCHED_DATE,
+                     amount=AMOUNT,
+                     remaining_amount=REMAINING_AMOUNT,
+                     status_code=STATUS_CODE,
+                     source_reference=SOURCE_REFERENCE,
+                     source_spec_2=SOURCE_SPEC2,
+                     source_spec_3=SOURCE_SPEC3,
+                     bill_reference=SS_BILL_REF,
+                     bill_date_1=BILL_DATE_1,
+                     bill_date_2=BILL_DATE_2,
+                     bill_date_3=BILL_DATE_3,
+                     bill_date=BILL_DATE,
+                     sec_code=SEC_CODE,
+                     taxable_amount=TAXABLE_AMOUNT,
+                     is_cutoff=IS_CUTOFF,
+                     is_subject_to_interest=IS_SUBJECT_TO_INT,
+                     adjusted_amount=ADJUSTED_AMOUNT,
+                     is_adjust_allowed=IS_ADJUST_ALLOWED,
+                     location_number=LOCATION_ID,
+                     due_date=DUE_DATE,
+                     date_created=CREATED,
+                     date_updated=UPDATED),
+            (list.files(data_dir, recursive=TRUE, full.names=TRUE) %>% 
+               str_subset("AR00200T"))[-1] %>%
+              lapply(read_csv, 
+                     col_names=FALSE,
+                     col_types=c(rep("-", 17), "d", rep("-", 12))) %>%
+              bind_rows)
 
 # Bill info
-bill_info <- read.csv(file=paste0(data_dir, "/UM00260T.csv"))
+bill_info <- read_csv(file=paste0(data_dir, "/UM00260T.csv"))
 
 bill_info <- bill_info %>%
   rename(account_number=ACCOUNT_NUMBER,
@@ -158,7 +178,7 @@ bill_info <- bill_info %>%
          date_updated=UPDATED)
 
 # Financial assistance
-financial_assist <- read.csv(file=paste0(data_dir, "/UM00232T.csv"))
+financial_assist <- read_csv(file=paste0(data_dir, "/UM00232T.csv"))
 
 financial_assist <- financial_assist %>%
   rename(transaction_id=TRANSACTION_ID,
@@ -210,7 +230,7 @@ financial_assist_detail <- financial_assist_detail %>%
          account_number=ACCOUNT_NO)
 
 # Cutoff and reconnect
-cutoff_info <- read.csv(file=paste0(data_dir, "/RS00200M.csv"))
+cutoff_info <- read_csv(file=paste0(data_dir, "/RS00200M.csv"))
 
 cutoff_info <- cutoff_info %>%
   rename(action_id=ACTION_ID,
@@ -234,7 +254,7 @@ cutoff_info <- cutoff_info %>%
          date_updated=UPDATED)
 
 # Payment arrangement
-payment_arrangement <- read.csv(file=paste0(data_dir, "/CO00200M.csv"))
+payment_arrangement <- read_csv(file=paste0(data_dir, "/CO00200M.csv"))
 
 payment_arrangement <- payment_arrangement %>%
   rename(payment_plan_id=PAYMENT_PLAN_ID,
@@ -258,7 +278,7 @@ payment_arrangement <- payment_arrangement %>%
          date_created=CREATED,
          date_updated=UPDATED)
 
-payment_arrangement_info <- read.csv(file=paste0(data_dir, "/CO00210T.csv"))
+payment_arrangement_info <- read_csv(file=paste0(data_dir, "/CO00210T.csv"))
 
 payment_arrangement_info <- payment_arrangement_info %>%
   rename(payment_plan_id=PAYMENT_PLAN_ID,
@@ -272,7 +292,7 @@ payment_arrangement_info <- payment_arrangement_info %>%
          date_updated=UPDATED)
 
 # Collections
-collection_info <- read.csv(file=paste0(data_dir, "/CO00400T.csv"))
+collection_info <- read_csv(file=paste0(data_dir, "/CO00400T.csv"))
 
 collection_info <- collection_info %>%
   rename(subsystem_id=SUBSYSTEM_ID,
@@ -283,7 +303,7 @@ collection_info <- collection_info %>%
          date_created=CREATED,
          date_updated=UPDATED)
 
-collection_amount <- read.csv(file=paste0(data_dir, "/CO00450T.csv"))
+collection_amount <- read_csv(file=paste0(data_dir, "/CO00450T.csv"))
 
 collection_amount <- collection_amount %>%
   rename(subsystem_id=SUBSYSTEM_ID,
@@ -308,9 +328,9 @@ collection_amount <- collection_amount %>%
          date_updated=UPDATED)
 
 # Usage info
-usage_info <- list.files(data_dir, full.names=TRUE) %>% 
+usage_info <- list.files(data_dir, recursive=TRUE, full.names=TRUE) %>% 
   str_subset("UM00262T") %>%
-  lapply(read.csv) %>%
+  lapply(read_csv) %>%
   bind_rows
 
 usage_info <- usage_info %>%
@@ -355,7 +375,7 @@ usage_info <- usage_info %>%
          date_created=CREATED,
          date_updated=UPDATED)
 
-code_info <- read.csv(file=paste0(data_dir, "/AR50100C.csv"))
+code_info <- read_csv(file=paste0(data_dir, "/AR50100C.csv"))
 
 code_info <- code_info %>%
   rename(subsystem_id=SUBSYSTEM_ID,
