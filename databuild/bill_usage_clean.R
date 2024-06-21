@@ -1,6 +1,6 @@
 # LOAD DATA
 load(file=paste0(working_data_dir, "/analysis_info.RData"))
-load(file=paste0(working_data_dir, "/analysis_info_large.RData"))
+load(file=paste0(working_data_dir, "/analysis_info_large.RData.gz"))
 
 
 # Clean usage info ####
