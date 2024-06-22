@@ -21,8 +21,7 @@ bill_info <- bill_info %>%
   mutate(start_date=mdy(start_date),
          end_date=mdy(end_date),
          due_date=mdy(due_date),
-         bill_date=mdy(bill_date),
-         is_off_cycle=is_off_cycle=="TRUE")
+         bill_date=mdy(bill_date))
 
 bill_info_filtered <- bill_info %>% 
   filter(!is_canceled,
@@ -31,13 +30,13 @@ bill_info_filtered <- bill_info %>%
          !is.na(due_date),
          !is_error,
          !is_voided,
+         audit_or_live=="L",
          type_code %in% c("REGLR", "MSTMT", "FINAL"),
-         source_code %in% c("", "QB1", "QB2", "QB3"),
          !is_corrected)
 
 # Those who are not on a payment plan
 no_plan_bill <- bill_info_filtered %>%
-  filter(source_code=="") %>%
+  filter(is.na(source_code)) %>%
   mutate(delinquent=previous_bill_amount+total_payments>0,
          delinquent_amount=ifelse(previous_bill_amount+total_payments>0,
                                   previous_bill_amount+total_payments,
@@ -51,7 +50,7 @@ no_plan_bill <- bill_info_filtered %>%
 
 # Those on a payment plan
 plan_bill <- bill_info_filtered %>%
-  filter(source_code!="") %>%
+  filter(!is.na(source_code)) %>%
   mutate(delinquent=ar_due_before_bill>0,
          delinquent_amount=ifelse(ar_due_before_bill>0,
                                   ar_due_before_bill,
@@ -63,7 +62,7 @@ plan_bill <- bill_info_filtered %>%
          source_code, type_code, is_off_cycle,
          start_date, end_date)
 
-delinquency_status <- rbind(no_plan_bill, plan_bill) %>%
+delinquency_status <- bind_rows(no_plan_bill, plan_bill) %>%
   left_join(account_info_subset,
             by="account_number") %>%
   filter(account, cycle_code!="NOINFO")
@@ -160,9 +159,9 @@ delinquency_status_sub <- delinquency_status_sub %>%
                   NA)) %>%
   ungroup()
 
-delinquency_status <- rbind(delinquency_status_sub,
-                            delinquency_status_rest,
-                            delinquency_status_none)
+delinquency_status <- bind_rows(delinquency_status_sub,
+                                delinquency_status_rest,
+                                delinquency_status_none)
 
 # Attach financial info onto payment arrangement
 financial_assist_account <- financial_assist %>%
@@ -231,9 +230,9 @@ delinquency_status_sub <- delinquency_status_sub %>%
                                             account_number==account_number)$financial_assist_end))) %>%
   ungroup()
 
-delinquency_status <- rbind(delinquency_status_sub,
-                            delinquency_status_rest,
-                            delinquency_status_none)
+delinquency_status <- bind_rows(delinquency_status_sub,
+                                delinquency_status_rest,
+                                delinquency_status_none)
 
 # Cutoff/reconnect
 cutoff_reconnect <- cutoff_info %>%
@@ -319,9 +318,9 @@ delinquency_status_sub <- delinquency_status_sub %>%
                                   account_number==account_number)$cutoff_end))) %>%
   ungroup()
 
-delinquency_status <- rbind(delinquency_status_sub,
-                            delinquency_status_rest,
-                            delinquency_status_none) %>%
+delinquency_status <- bind_rows(delinquency_status_sub,
+                                delinquency_status_rest,
+                                delinquency_status_none) %>%
   distinct()
 
 # Flag first bill and resumption
@@ -338,7 +337,8 @@ delinquency_status <- delinquency_status %>%
                      type_code!="FINAL" & lag_final=="FINAL" & !is.na(lag_final) ~ "RESUME",
                      type_code!="FINAL" & previous_bill_amount<=0 & total_payments<0 & rnum==1 ~ "RESUME",
                      .default=type_code)) %>%
-  select(-lag_final, -lag_previous_bill_amount, -rnum)
+  select(-lag_final, -lag_previous_bill_amount, -rnum) %>%
+  distinct()
 
 # Save the dataset
 save(delinquency_status,

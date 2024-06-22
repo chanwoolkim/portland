@@ -26,7 +26,8 @@ payment_arrange_amount <- payment_arrangement %>%
   summarise(arrange_amount_due=sum(amount_due, na.rm=TRUE),
             arrange_amount_paid=sum(amount_paid, na.rm=TRUE),
             arrange_amount_terminated=sum(amount_outstanding, na.rm=TRUE)) %>%
-  ungroup()
+  ungroup() %>%
+  distinct()
 
 # Payment arrangement by year
 payment_arrange_by_year <- payment_arrangement %>%
@@ -52,33 +53,46 @@ payment_arrange_by_year <- payment_arrangement %>%
          payment_arrange_2023=
            between(2023,
                    year(payment_arrange_start),
+                   year(payment_arrange_end)),
+         payment_arrange_2024=
+           between(2024,
+                   year(payment_arrange_start),
                    year(payment_arrange_end))) %>%
   group_by(account_number) %>%
   summarise(payment_arrange_2019=sum(payment_arrange_2019),
             payment_arrange_2020=sum(payment_arrange_2020),
             payment_arrange_2021=sum(payment_arrange_2021),
             payment_arrange_2022=sum(payment_arrange_2022),
-            payment_arrange_2023=sum(payment_arrange_2023)) %>%
+            payment_arrange_2023=sum(payment_arrange_2023),
+            payment_arrange_2024=sum(payment_arrange_2024)) %>%
   ungroup() %>%
   mutate(payment_arrange_2019=payment_arrange_2019>0,
          payment_arrange_2020=payment_arrange_2020>0,
          payment_arrange_2021=payment_arrange_2021>0,
          payment_arrange_2022=payment_arrange_2022>0,
-         payment_arrange_2023=payment_arrange_2023>0)
+         payment_arrange_2023=payment_arrange_2023>0,
+         payment_arrange_2024=payment_arrange_2024>0) %>%
+  distinct()
 
 
 # Financial assistance by LINC tier ####
 financial_assist_csv <- financial_assist_detail %>%
   filter(grepl("/", bill_date)) %>%
-  mutate(bill_date=mdy(bill_date),
-         linc_expiry_date=mdy(linc_expiry_date))
+  mutate_at(c("bill_date",
+              "linc_effective_date", 
+              "linc_expiry_date", 
+              "date_last_updated"),
+            mdy)
 
 financial_assist_xlsx <- financial_assist_detail %>%
   filter(!grepl("/", bill_date)) %>%
-  mutate_at(c("bill_date", "linc_effective_date", "linc_expiry_date", "date_last_updated"),
+  mutate_at(c("bill_date", 
+              "linc_effective_date",
+              "linc_expiry_date",
+              "date_last_updated"),
             function(x) {as_date(as.numeric(x), origin="1900-01-01")})
 
-financial_assist_detail <- rbind(financial_assist_csv, financial_assist_xlsx) %>%
+financial_assist_detail <- bind_rows(financial_assist_csv, financial_assist_xlsx) %>%
   mutate(bill_year=year(bill_date),
          linc_expiry_year=year(linc_expiry_date),
          senior_disabilities=linc_expiry_year>2050) %>%
@@ -87,7 +101,8 @@ financial_assist_detail <- rbind(financial_assist_csv, financial_assist_xlsx) %>
               "water_consumption", "sewer_consumption",
               "penalty_fees", "penalty_fees_reversed",
               "crisis_voucher_amount"),
-            as.numeric)
+            as.numeric) %>%
+  distinct()
 
 linc_info <- financial_assist_detail %>%
   mutate(tier=as.numeric(gsub("Tier", "", linc_tier_type))) %>%
@@ -101,7 +116,8 @@ linc_info <- financial_assist_detail %>%
               values_from=c("tier",
                             "discount_amount",
                             "crisis_voucher"),
-              values_fill=NA)
+              values_fill=NA) %>%
+  distinct()
 
 # Financial assistance by year
 financial_assist_by_year <- financial_assist %>%
@@ -127,19 +143,26 @@ financial_assist_by_year <- financial_assist %>%
          financial_assist_2023=
            between(2023,
                    year(financial_assist_start),
+                   year(financial_assist_end)),
+         financial_assist_2024=
+           between(2024,
+                   year(financial_assist_start),
                    year(financial_assist_end))) %>%
   group_by(account_number) %>%
   summarise(financial_assist_2019=sum(financial_assist_2019),
             financial_assist_2020=sum(financial_assist_2020),
             financial_assist_2021=sum(financial_assist_2021),
             financial_assist_2022=sum(financial_assist_2022),
-            financial_assist_2023=sum(financial_assist_2023)) %>%
+            financial_assist_2023=sum(financial_assist_2023),
+            financial_assist_2024=sum(financial_assist_2024)) %>%
   ungroup() %>%
   mutate(financial_assist_2019=financial_assist_2019>0,
          financial_assist_2020=financial_assist_2020>0,
          financial_assist_2021=financial_assist_2021>0,
          financial_assist_2022=financial_assist_2022>0,
-         financial_assist_2023=financial_assist_2023>0)
+         financial_assist_2023=financial_assist_2023>0,
+         financial_assist_2024=financial_assist_2024>0) %>%
+  distinct()
 
 save(payment_arrange_amount, payment_arrange_by_year,
      linc_info, financial_assist_detail, financial_assist_by_year,

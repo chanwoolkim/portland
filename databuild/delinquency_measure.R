@@ -14,13 +14,13 @@ bill_info_filtered <- bill_info %>%
          !is.na(due_date),
          !is_error,
          !is_voided,
+         audit_or_live=="L",
          type_code %in% c("REGLR", "MSTMT"),
-         source_code %in% c("", "QB1", "QB2", "QB3"),
          !is_corrected)
 
 # Those who are not on a payment plan
 no_plan_bill <- bill_info_filtered %>%
-  filter(source_code=="") %>%
+  filter(is.na(source_code)) %>%
   mutate(delinquent=previous_bill_amount+total_payments>0,
          delinquent_amount=ifelse(previous_bill_amount+total_payments>0,
                                   previous_bill_amount+total_payments,
@@ -36,7 +36,7 @@ no_plan_bill <- bill_info_filtered %>%
 
 # Those on a payment plan
 plan_bill <- bill_info_filtered %>%
-  filter(source_code!="") %>%
+  filter(!is.na(source_code)) %>%
   mutate(delinquent=ar_due_before_bill>0,
          delinquent_amount=ifelse(ar_due_before_bill>0,
                                   ar_due_before_bill,
@@ -50,7 +50,7 @@ plan_bill <- bill_info_filtered %>%
   ungroup() %>%
   select(account_number, due_year, n_bill, delinquent, delinquent_amount, total_bill)
 
-delinquency_status <- rbind(no_plan_bill, plan_bill) %>%
+delinquency_status <- bind_rows(no_plan_bill, plan_bill) %>%
   group_by(account_number, due_year) %>%
   summarise(n_bill=sum(n_bill, na.rm=TRUE),
             delinquent=sum(delinquent, na.rm=TRUE),
@@ -73,7 +73,8 @@ delinquency_status <- rbind(no_plan_bill, plan_bill) %>%
                             "delinquent_amount",
                             "delinquency_amount_rate",
                             "total_bill"),
-              values_fill=0)
+              values_fill=0) %>%
+  distinct()
 
 
 # Cutoff by year ####
@@ -111,19 +112,24 @@ cutoff_reconnect <- cutoff_reconnect %>%
          cutoff_2022=
            between(2022, year(cutoff_date), year(reconnect_date)),
          cutoff_2023=
-           between(2023, year(cutoff_date), year(reconnect_date))) %>%
+           between(2023, year(cutoff_date), year(reconnect_date)),
+         cutoff_2024=
+           between(2024, year(cutoff_date), year(reconnect_date))) %>%
   group_by(account_number, person_number, location_number) %>%
   summarise(cutoff_2019=sum(cutoff_2019),
             cutoff_2020=sum(cutoff_2020),
             cutoff_2021=sum(cutoff_2021),
             cutoff_2022=sum(cutoff_2022),
-            cutoff_2023=sum(cutoff_2023)) %>%
+            cutoff_2023=sum(cutoff_2023),
+            cutoff_2024=sum(cutoff_2024)) %>%
   ungroup() %>%
   mutate(cutoff_2019=cutoff_2019>0,
          cutoff_2020=cutoff_2020>0,
          cutoff_2021=cutoff_2021>0,
          cutoff_2022=cutoff_2022>0,
-         cutoff_2023=cutoff_2023>0)
+         cutoff_2023=cutoff_2023>0,
+         cutoff_2024=cutoff_2024>0) %>%
+  distinct()
 
 # Save data
 save(delinquency_status,

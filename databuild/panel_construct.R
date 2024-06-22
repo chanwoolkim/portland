@@ -40,7 +40,7 @@ portland_panel <- portland_panel %>%
 
 # Get location relation
 location_relation <- location_relation %>%
-  mutate(location_end_date=ifelse(end_date=="", "12/31/2099", end_date),
+  mutate(location_end_date=ifelse(is.na(end_date), "12/31/2099", end_date),
          location_start_date=mdy(start_date),
          location_end_date=mdy(location_end_date),
          occupancy=ifelse(is_owner, "Owner", "Tenant"))
@@ -62,18 +62,20 @@ portland_panel <- portland_panel %>%
 
 # Prioritise location relation
 portland_panel_loc_rel <- portland_panel %>%
-  filter(is.na(location_number)) %>%
-  mutate(location_number=ifelse(is.na(location_number.y),
-                                location_number.x,
-                                location_number.y)) %>%
-  filter(!is.na(location_start_date),
-         !is.na(location_end_date)) %>%
+  mutate(location_number=ifelse(is.na(location_number.y) & is.na(location_number.x),
+                                location_number,
+                                ifelse(is.na(location_number.y),
+                                       location_number.x,
+                                       location_number.y)))
+
+portland_panel_loc_rel_fin <- portland_panel_loc_rel %>%
+  filter(!is.na(location_number.y)) %>%
   filter(between(bill_date, location_start_date, location_end_date) | type_code=="FINAL")
 
-portland_panel_fin <- portland_panel %>%
-  filter(!is.na(location_number))
+portland_panel_loc_rel <- portland_panel_loc_rel %>%
+  filter(is.na(location_number.y))
 
-portland_panel <- rbind(portland_panel_loc_rel, portland_panel_fin) %>%
+portland_panel <- bind_rows(portland_panel_loc_rel_fin, portland_panel_loc_rel) %>%
   select(-location_number.x, -location_number.y) %>%
   group_by(account_number, person_number) %>%
   fill(location_number, .direction="downup") %>%
@@ -88,12 +90,37 @@ portland_panel <- portland_panel %>%
   select(-location_start_date, -location_end_date)
 
 # Get financial assistance info
-portland_panel <- portland_panel %>%
+financial_assist_account <- financial_assist_detail %>%
+  filter(!is.na(account_number)) %>%
+  mutate(account_number=as.numeric(account_number)) %>%
+  select(account_number, bill_date) %>%
+  mutate(match=TRUE)
+
+portland_panel_account <- portland_panel %>%
+  left_join(financial_assist_account,
+            by=c("account_number", "bill_date")) %>%
+  filter(match) %>%
   left_join(financial_assist_detail %>%
+              filter(!is.na(account_number)) %>%
+              mutate(account_number=as.numeric(account_number)) %>%
+              select(account_number, bill_date, linc_tier_type,
+                     net_bill_amount, billed_amount_before_discount, linc_discount_amount,
+                     crisis_voucher_amount, senior_disabilities),
+            by=c("account_number", "bill_date"))
+
+portland_panel_location <- portland_panel %>%
+  left_join(financial_assist_account,
+            by=c("account_number", "bill_date")) %>%
+  filter(is.na(match)) %>%
+  left_join(financial_assist_detail %>%
+              filter(is.na(account_number)) %>%
               select(location_number, bill_date, linc_tier_type,
                      net_bill_amount, billed_amount_before_discount, linc_discount_amount,
                      crisis_voucher_amount, senior_disabilities),
             by=c("location_number", "bill_date"))
+
+portland_panel <- bind_rows(portland_panel_account, portland_panel_location) %>%
+  select(-match)
 
 # Add in writeoff info
 account_writeoff <- account_info %>%
@@ -127,17 +154,17 @@ portland_final <- portland_final %>%
               select(account_number, amount_due, collection_amount),
             by=c("account_number"))
 
-portland_panel <- rbind(portland_final, portland_non_final)
+portland_panel <- bind_rows(portland_final, portland_non_final)
 
 # Aggregate for monthly payments
 portland_panel_sub <- portland_panel %>%
   filter(source_code %in% c("QB1", "QB2", "QB3"))
 
 portland_panel_na <- portland_panel %>%
-  filter(is.na(usage_bill_amount), source_code=="")
+  filter(is.na(usage_bill_amount), is.na(source_code))
 
 portland_panel <- portland_panel %>%
-  filter(source_code=="",
+  filter(is.na(source_code),
          !is.na(usage_bill_amount)) %>%
   mutate(across(usage_bill_amount:bill_leaf, ~ replace_na(.x, 0)))
 
@@ -172,7 +199,7 @@ portland_panel_sub <- portland_panel_sub %>%
          across(usage_bill_amount:bill_leaf, ~ replace_na(.x, 0))) %>%
   select(-source_num, -source_lag, -source_lag_lag, -to_keep, -group_num)
 
-portland_panel <- rbind(portland_panel_sub, portland_panel, portland_panel_na) %>%
+portland_panel <- bind_rows(portland_panel_sub, portland_panel, portland_panel_na) %>%
   arrange(account_number, bill_date) %>%
   rename(tract=census_tract,
          previous_bill=previous_bill_amount,
@@ -223,8 +250,8 @@ portland_panel <- portland_panel %>%
                                current_bill+final_payment,
                                0),
          bill_date=if_else(bill_date==mdy("12/31/2018"),
-                             mdy("1/1/2019"),
-                             bill_date))
+                           mdy("1/1/2019"),
+                           bill_date))
 
 # Flag "assumed" resumption (same account)
 portland_panel <- portland_panel %>%

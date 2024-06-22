@@ -31,10 +31,10 @@ portland_panel_sub <- portland_panel %>%
                 .fns=~.>0))
 
 portland_panel_quarter <- portland_panel %>%
-  filter(source_code=="")
+  filter(is.na(source_code))
 
 portland_panel_month <- portland_panel %>%
-  filter(source_code!="") %>%
+  filter(!is.na(source_code)) %>%
   select(-payment_arrange, -payment_arrange_status, -financial_assist,
          -cutoff,
          -usage_bill_amount, -water_cons, -sewer_cons,
@@ -43,7 +43,8 @@ portland_panel_month <- portland_panel %>%
          -crisis_voucher_amount) %>%
   left_join(portland_panel_sub, by=c("account_number", "bill_date"))
 
-portland_panel_estimation <- rbind(portland_panel_quarter, portland_panel_month) %>%
+portland_panel_estimation <- bind_rows(portland_panel_quarter, 
+                                       portland_panel_month) %>%
   arrange(account_number, bill_date)
 
 rm(portland_panel_quarter, portland_panel_month, portland_panel_sub)

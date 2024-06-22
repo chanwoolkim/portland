@@ -9,8 +9,7 @@ load(file=paste0(working_data_dir, "/acs_tract.RData"))
 load(file=paste0(working_data_dir, "/portland_demographics_tract.RData"))
 load(file=paste0(working_data_dir, "/location_financial.RData"))
 
-tracts <- read.csv(file=paste0(auxiliary_data_dir, "/portland_geoid.csv"),
-                   header=TRUE)$GEOID
+tracts <- read_csv(file=paste0(auxiliary_data_dir, "/portland_geoid.csv"))$GEOID
 
 # Choose valid accounts
 account_info_filtered <- account_info %>%
@@ -109,12 +108,14 @@ account_info_merge <- account_info_merge %>%
                   payment_arrange_2020=FALSE,
                   payment_arrange_2021=FALSE,
                   payment_arrange_2022=FALSE,
-                  payment_arrange_2023=FALSE)) %>%
+                  payment_arrange_2023=FALSE,
+                  payment_arrange_2024=FALSE)) %>%
   mutate(payment_arrange=payment_arrange_2019 | 
            payment_arrange_2020 |
            payment_arrange_2021 | 
            payment_arrange_2022 | 
-           payment_arrange_2023)
+           payment_arrange_2023 |
+           payment_arrange_2024)
 
 account_info_merge <- account_info_merge %>%
   left_join(linc_info,
@@ -167,24 +168,37 @@ account_info_merge <- account_info_merge %>%
                   financial_assist_2020=FALSE,
                   financial_assist_2021=FALSE,
                   financial_assist_2022=FALSE,
-                  financial_assist_2023=FALSE)) %>%
+                  financial_assist_2023=FALSE,
+                  financial_assist_2024=FALSE)) %>%
   mutate(financial_assist=financial_assist_2019 |
            financial_assist_2020 |
            financial_assist_2021 |
            financial_assist_2022 |
-           financial_assist_2023)
+           financial_assist_2023 |
+           financial_assist_2024)
 
 account_info_merge <- account_info_merge %>%
   left_join(cutoff_reconnect %>%
               select(account_number,
-                     cutoff_2019, cutoff_2020, cutoff_2021, cutoff_2022, cutoff_2023),
+                     cutoff_2019,
+                     cutoff_2020, 
+                     cutoff_2021, 
+                     cutoff_2022, 
+                     cutoff_2023,
+                     cutoff_2024),
             by="account_number") %>%
   replace_na(list(cutoff_2019=FALSE,
                   cutoff_2020=FALSE,
                   cutoff_2021=FALSE,
                   cutoff_2022=FALSE,
-                  cutoff_2023=FALSE)) %>%
-  mutate(cutoff=cutoff_2019 | cutoff_2020 | cutoff_2021 | cutoff_2022 | cutoff_2023)
+                  cutoff_2023=FALSE,
+                  cutoff_2024=FALSE)) %>%
+  mutate(cutoff=cutoff_2019 |
+           cutoff_2020 |
+           cutoff_2021 |
+           cutoff_2022 |
+           cutoff_2023 | 
+           cutoff_2024)
 
 # Consider only the sample with valid Census tract
 account_info_merge <- account_info_merge %>%
