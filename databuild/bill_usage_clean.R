@@ -43,7 +43,8 @@ usage_info <- usage_info %>%
             linc_water_price=weighted.mean(bc_detail_rate[report_context=="LINC"],
                                            weight[report_context=="LINC"], na.rm=TRUE)) %>%
   ungroup() %>%
-  mutate(bill_run_date=mdy(bill_run_date))
+  mutate(bill_run_date=mdy(bill_run_date)) %>%
+  distinct()
 
 
 # Clean financial info ####
@@ -62,7 +63,8 @@ financial_info_leftover <- financial_info %>%
   filter(is.na(match),
          transaction_code=="PYMNT",
          !grepl("COMMIT", transaction_type)) %>%
-  select(-match)
+  select(-match) %>%
+  distinct()
 
 financial_info <- financial_info %>%
   group_by(account_number, bill_date, summary) %>%
@@ -83,7 +85,8 @@ financial_info <- financial_info %>%
          bill_penalty=PNLTY,
          bill_donate=DONAT,
          bill_bankrupt=BNKRP,
-         bill_leaf=LRF)
+         bill_leaf=LRF) %>%
+  distinct()
 
 save(financial_info_leftover,
      file=paste0(working_data_dir, "/financial_info_leftover.RData"))
