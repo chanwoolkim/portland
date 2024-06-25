@@ -236,7 +236,9 @@ financial_assist_detail <- financial_assist_detail %>%
          cycle_code=CYCLE_CD,
          route_number=ROUTE_NO,
          date_last_updated=LAST_UPDATED,
-         account_number=ACCOUNT_NO)
+         account_number=ACCOUNT_NO,
+         penalty_fee=PENALTY_FEE,
+         penalty_fee_reversed=PENALTY_FEE_REV)
 
 # Cutoff and reconnect
 cutoff_info <- 

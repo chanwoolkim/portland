@@ -95,7 +95,14 @@ financial_assist_xlsx <- financial_assist_detail %>%
 financial_assist_detail <- bind_rows(financial_assist_csv, financial_assist_xlsx) %>%
   mutate(bill_year=year(bill_date),
          linc_expiry_year=year(linc_expiry_date),
-         senior_disabilities=linc_expiry_year>2050) %>%
+         senior_disabilities=linc_expiry_year>2050,
+         penalty_fees=ifelse(is.na(penalty_fees),
+                             penalty_fee,
+                             penalty_fees),
+         penalty_fees_reversed=ifelse(is.na(penalty_fees_reversed),
+                                      penalty_fee_reversed,
+                                      penalty_fees_reversed)) %>%
+  select(-penalty_fee, -penalty_fee_reversed) %>%
   mutate_at(c("location_number",
               "net_bill_amount", "billed_amount_before_discount", "linc_discount_amount",
               "water_consumption", "sewer_consumption",
