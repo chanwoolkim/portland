@@ -3,7 +3,7 @@
 #
 # Build Datasets for Analysis using SERVUS Raw Data
 #
-# Chanwool Kim, June 19, 2024
+# Chanwool Kim, July 10, 2024
 #
 #=========================================================================#
 
@@ -22,6 +22,7 @@ setwd(wd)
 wd <- getwd()
 code_dir <- paste0(wd, "/code")
 data_dir <- paste0(wd, "/data/raw/servus")
+tu_data_dir <- paste0(wd, "/data/raw/TU")
 auxiliary_data_dir <- paste0(wd, "/data/auxiliary")
 working_data_dir <- paste0(wd, "/data/analysis")
 output_dir <- paste0(code_dir, "/output")
@@ -37,6 +38,7 @@ source(paste0(code_dir, "/utilities/preliminary.R"))
 # Run Databuild Scripts
 #---------+---------+---------+---------+---------+---------+
 source(paste0(code_dir, "/databuild/setup_portland.R"))
+source(paste0(code_dir, "/databuild/setup_transunion.R"))
 source(paste0(code_dir, "/databuild/geocoding_api.R"))
 source(paste0(code_dir, "/databuild/tidy_census_api.R"))
 source(paste0(code_dir, "/databuild/delinquency_measure.R"))

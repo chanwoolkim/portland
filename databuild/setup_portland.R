@@ -417,21 +417,6 @@ code_info <- code_info %>%
          date_updated=UPDATED)
 
 
-# Location info from financial info ####
-location_financial <- financial_info %>%
-  transmute(account_number,
-            bill_date=mdy(bill_date),
-            due_date=mdy(due_date),
-            location_number) %>%
-  filter(!is.na(location_number)) %>%
-  arrange(account_number, bill_date, due_date, location_number) %>%
-  distinct() %>%
-  group_by(account_number, bill_date) %>%
-  mutate(row=row_number()) %>%
-  ungroup() %>%
-  filter(row==1) %>%
-  select(-row)
-
 # Save ####
 save(address_info,
      file=paste0(working_data_dir, "/address_info.RData"))
@@ -447,6 +432,3 @@ save(account_info, address_info,
 
 save(financial_info, usage_info,
      file=gzfile(paste0(working_data_dir, "/analysis_info_large.RData.gz")))
-
-save(location_financial,
-     file=paste0(working_data_dir, "/location_financial.RData"))

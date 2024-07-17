@@ -5,7 +5,6 @@ load(file=paste0(working_data_dir, "/financial_assistance_info.RData"))
 load(file=paste0(working_data_dir, "/usage_financial.RData"))
 load(file=paste0(working_data_dir, "/financial_info_leftover.RData"))
 load(file=paste0(working_data_dir, "/delinquency_status.RData"))
-load(file=paste0(working_data_dir, "/location_financial.RData"))
 load(file=paste0(working_data_dir, "/geocode_address_info_subset.RData"))
 
 
@@ -36,58 +35,18 @@ portland_panel <- portland_panel %>%
 
 # Merge in location from financial info
 portland_panel <- portland_panel %>%
-  left_join(location_financial, by=c("account_number", "due_date", "bill_date"))
-
-# Get location relation
-location_relation <- location_relation %>%
-  mutate(location_end_date=ifelse(is.na(end_date), "12/31/2099", end_date),
-         location_start_date=mdy(start_date),
-         location_end_date=mdy(location_end_date),
-         occupancy=ifelse(is_owner, "Owner", "Tenant"))
-
-portland_panel <- portland_panel %>%
-  left_join(location_relation %>%
-              select(account_number,
-                     person_number,
-                     location_number,
-                     location_start_date,
-                     location_end_date,
-                     occupancy),
-            by=c("account_number", "person_number"))
-
-portland_panel <- portland_panel %>%
   left_join(location_account_relation %>%
-              select(account_number, location_number),
+              select(account_number, location_number) %>%
+              distinct(),
             by="account_number")
 
-# Prioritise location relation
-portland_panel_loc_rel <- portland_panel %>%
-  mutate(location_number=ifelse(is.na(location_number.y) & is.na(location_number.x),
-                                location_number,
-                                ifelse(is.na(location_number.y),
-                                       location_number.x,
-                                       location_number.y)))
-
-portland_panel_loc_rel_fin <- portland_panel_loc_rel %>%
-  filter(!is.na(location_number.y)) %>%
-  filter(between(bill_date, location_start_date, location_end_date) | type_code=="FINAL")
-
-portland_panel_loc_rel <- portland_panel_loc_rel %>%
-  filter(is.na(location_number.y))
-
-portland_panel <- bind_rows(portland_panel_loc_rel_fin, portland_panel_loc_rel) %>%
-  select(-location_number.x, -location_number.y) %>%
-  group_by(account_number, person_number) %>%
-  fill(location_number, .direction="downup") %>%
-  filter(!is.na(location_number)) %>%
-  ungroup() %>%
+portland_panel <- portland_panel %>%
   distinct(account_number, person_number, due_date, bill_date, .keep_all=TRUE)
 
 portland_panel <- portland_panel %>%
   left_join(geocode_address_info_subset %>%
               select(location_number, census_tract),
-            by="location_number") %>%
-  select(-location_start_date, -location_end_date)
+            by="location_number")
 
 # Get financial assistance info
 financial_assist_account <- financial_assist_detail %>%

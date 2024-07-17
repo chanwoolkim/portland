@@ -6,13 +6,14 @@ load(file=paste0(working_data_dir, "/financial_assistance_info.RData"))
 # Only consider single family
 account_info_subset <- account_info %>%
   mutate(occupancy_code=trimws(occupancy_code),
+         cycle_num=as.numeric(trimws(cycle_code)),
          cycle_code=as.numeric(trimws(cycle_code)),
          cycle_code=case_when(cycle_code %in% 1:64 ~ "QUARTER",
                               cycle_code %in% 65:85 ~ "MONTH",
                               cycle_code %in% 90:92 ~ "BIMONTH",
                               .default="NOINFO")) %>%
   filter(occupancy_code %in% c("RESSF", "ASST")) %>%
-  select(account_number, cycle_code) %>%
+  select(account_number, cycle_num, cycle_code) %>%
   distinct() %>%
   mutate(account=TRUE)
 
