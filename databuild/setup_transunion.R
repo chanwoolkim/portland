@@ -15,22 +15,26 @@ tu_data <- tu_data %>%
             by=c("customerInput_tusequencenumber"="customerInput_tusequencenumber0029",
                  "customerInput_customerInputPermId"="PermID"))
 
+tu_data <- tu_data %>%
+  transmute(state=customerInput_state,
+            zip=customerInput_zip,
+            state_mail=customerInput_state1,
+            zip_mail=customerInput_zip1,
+            tu_id=customerInput_tusequencenumber %>% as.numeric(),
+            tu_permid=customerInput_customerInputPermId,
+            credit_date=creditAsOfDate_creditAsOfDate,
+            credit_score=cvtg03_finscore,
+            advrs1=cvtg03_advrs1,
+            advrs2=cvtg03_advrs2,
+            advrs3=cvtg03_advrs3,
+            advrs4=cvtg03_advrs4,
+            edie=edie04_score,
+            etie=etie04_score,
+            hh_income_estimate=Estimated_HH_Income,
+            ethnicity=Ethnicity_Group) %>%
+  distinct()
+
 
 # Save ####
-save(address_info,
-     file=paste0(working_data_dir, "/address_info.RData"))
-
-save(account_info, address_info,
-     location_relation, location_account_relation,
-     bill_info, financial_assist, financial_assist_detail,
-     cutoff_info,
-     payment_arrangement, payment_arrangement_info,
-     collection_info, collection_amount,
-     code_info,
-     file=paste0(working_data_dir, "/analysis_info.RData"))
-
-save(financial_info, usage_info,
-     file=gzfile(paste0(working_data_dir, "/analysis_info_large.RData.gz")))
-
-save(location_financial,
-     file=paste0(working_data_dir, "/location_financial.RData"))
+save(tu_data,
+     file=paste0(working_data_dir, "/tu_data.RData"))

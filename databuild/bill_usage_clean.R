@@ -9,7 +9,7 @@ usage_info <- usage_info %>%
          weight=ifelse(is_bc_detail_prorated,
                        bc_active_days/bc_standard_days,
                        1)) %>%
-  group_by(account_number, bill_run_date) %>%
+  group_by(tu_id, bill_run_date) %>%
   summarise(usage_bill_amount=sum(bc_detail_amount, na.rm=TRUE),
             water_cons=sum(cons_level_amount[report_context=="WCONS"], na.rm=TRUE),
             sewer_cons=sum(cons_level_amount[report_context=="SCONS"], na.rm=TRUE),
@@ -53,13 +53,13 @@ financial_info <- financial_info %>%
 
 # Save bills not in bill_info (to identify payment to final bill)
 bill_info <- bill_info %>%
-  select(account_number, bill_date) %>%
+  select(tu_id, bill_date) %>%
   distinct() %>%
   mutate(match=TRUE)
 
 financial_info_leftover <- financial_info %>%
   left_join(bill_info,
-            by=c("account_number", "bill_date")) %>%
+            by=c("tu_id", "bill_date")) %>%
   filter(is.na(match),
          transaction_code=="PYMNT",
          !grepl("COMMIT", transaction_type)) %>%
@@ -67,16 +67,16 @@ financial_info_leftover <- financial_info %>%
   distinct()
 
 financial_info <- financial_info %>%
-  group_by(account_number, bill_date, summary) %>%
+  group_by(tu_id, bill_date, summary) %>%
   summarise(bill_amount=sum(amount, na.rm=TRUE),
             adjusted_bill_amount=sum(adjusted_amount, na.rm=TRUE)) %>%
   ungroup() %>%
   mutate(bill_date=mdy(bill_date))
 
 financial_info <- financial_info %>%
-  filter(!is.na(account_number),
+  filter(!is.na(tu_id),
          !is.na(bill_date)) %>%
-  pivot_wider(id_cols=c(account_number, bill_date),
+  pivot_wider(id_cols=c(tu_id, bill_date),
               values_from=adjusted_bill_amount,
               names_from=summary) %>%
   rename(bill_sewer_cons=SEWER,

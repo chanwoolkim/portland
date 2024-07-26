@@ -3,7 +3,7 @@
 #
 # Build Datasets for Analysis using SERVUS Raw Data
 #
-# Chanwool Kim, July 10, 2024
+# Chanwool Kim, July 26, 2024
 #
 #=========================================================================#
 
@@ -39,7 +39,6 @@ source(paste0(code_dir, "/utilities/preliminary.R"))
 #---------+---------+---------+---------+---------+---------+
 source(paste0(code_dir, "/databuild/setup_portland.R"))
 source(paste0(code_dir, "/databuild/setup_transunion.R"))
-source(paste0(code_dir, "/databuild/geocoding_api.R"))
 source(paste0(code_dir, "/databuild/tidy_census_api.R"))
 source(paste0(code_dir, "/databuild/delinquency_measure.R"))
 source(paste0(code_dir, "/databuild/financial_assistance_clean.R"))
