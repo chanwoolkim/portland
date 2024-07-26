@@ -201,13 +201,13 @@ life_expectancy_tract <- left_join(life_expectancy,
   select(tract=GEOID_20, life_expectancy) %>%
   group_by(tract) %>%
   summarise(life_expectancy=mean(life_expectancy, na.rm=TRUE)) %>%
-  unique()
+  distinct()
 
 portland_demographics_tract_wide <-
   left_join(portland_demographics_tract_wide,
             life_expectancy_tract,
             by="tract") %>%
-  unique()
+  distinct()
 
 save(portland_demographics_tract_wide,
      file=paste0(working_data_dir, "/portland_demographics_tract.RData"))
