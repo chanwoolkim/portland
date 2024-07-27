@@ -10,7 +10,8 @@ tu_data <- tu_data %>%
          hh_income_estimate, 
          ethnicity) %>%
   mutate(year_credit=year(credit_date),
-         quarter_credit=quarter(credit_date))
+         quarter_credit=quarter(credit_date),
+         tu_match=TRUE)
 
 portland_transunion_pre_2023 <- portland_panel_estimation %>%
   mutate(year_bill=year(bill_date),
@@ -30,7 +31,8 @@ portland_transunion <- bind_rows(portland_transunion_pre_2023,
                                  portland_transunion_post_2023) %>%
   select(-year_bill, -quarter_bill, 
          -year_credit, -quarter_credit, -credit_date) %>%
-  mutate(credit_score=as.numeric(credit_score))
+  mutate(credit_score=as.numeric(credit_score),
+         tu_match=!is.na(tu_match))
 
 # Save the dataset
 save(portland_transunion,
