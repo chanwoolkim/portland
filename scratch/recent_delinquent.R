@@ -37,6 +37,7 @@ portland_panel_2024q2 %>%
   distinct() %>%
   count() #146,063
 
+# Seniors and disabled
 portland_panel_seniors <- portland_panel_2024q2 %>%
   group_by(linc_tier_type, senior_disabilities, delinquent) %>%
   summarise(n=n_distinct(tu_id)) %>%
@@ -91,7 +92,7 @@ portland_panel_2024q2 %>%
   distinct() %>%
   count() #143,923
 
-# Descriptive on accounts
+# Descriptive on TU match
 portland_panel_tu <- portland_panel_2024q2 %>%
   group_by(linc_tier_type, delinquent, tu_match) %>%
   summarise(n=n_distinct(tu_id)) %>%
@@ -130,7 +131,7 @@ tab <- TexRow(c("Assistance",
   TexRow(c("No Assistance", "Yes")) /
   TexRow(portland_panel_tu[6, 3:5] %>% as.numeric(),
          dec=c(0, 0, 1), percentage=c(FALSE, FALSE, TRUE)) +
-  TexRow(c("No Assistance", "No")) /
+  TexRow(c("", "No")) /
   TexRow(portland_panel_tu[5, 3:5] %>% as.numeric(),
          dec=c(0, 0, 1), percentage=c(FALSE, FALSE, TRUE)) +
   TexMidrule() +
@@ -141,41 +142,56 @@ tab <- TexRow(c("Assistance",
 TexSave(tab, filename="tu_match", positions=rep('c', 5),
         output_path=output_dir, stand_alone=FALSE)
 
-# Non-consecutive missers
-portland_panel_estimation %>%
-  arrange(tu_id, bill_date) %>%
-  group_by(tu_id) %>%
-  mutate(delinquent_lag=lag(delinquent, 1)) %>%
-  ungroup() %>%
-  mutate(delinquent_once=(delinquent & !delinquent_lag)) %>%
-  filter(type_code=="REGLR") %>%
-  group_by(tu_id, bill_year) %>%
-  summarise(delinquent=sum(delinquent, na.rm=TRUE),
-            delinquent_once=sum(delinquent_once, na.rm=TRUE)) %>%
-  ungroup() %>%
-  mutate(delinquent=delinquent>0,
-         delinquent_once=delinquent_once>0) %>%
-  group_by(delinquent, delinquent_once, bill_year) %>%
-  summarise(n=n_distinct(tu_id))
+# TU match with income info
+portland_panel_tu_income <- portland_panel_2024q2 %>%
+  mutate(tu_income=!is.na(hh_income_estimate)) %>%
+  group_by(linc_tier_type, delinquent, tu_income) %>%
+  summarise(n=n_distinct(tu_id)) %>%
+  ungroup()
 
-portland_panel_estimation %>%
-  arrange(tu_id, bill_date) %>%
-  group_by(tu_id) %>%
-  filter(any(bill_year==2021),
-         any(bill_year==2024)) %>%
-  mutate(delinquent_lag=lag(delinquent, 1)) %>%
-  ungroup() %>%
-  mutate(delinquent_once=(delinquent & !delinquent_lag)) %>%
-  filter(type_code=="REGLR") %>%
-  group_by(tu_id, bill_year) %>%
-  summarise(delinquent=sum(delinquent, na.rm=TRUE),
-            delinquent_once=sum(delinquent_once, na.rm=TRUE)) %>%
-  ungroup() %>%
-  mutate(never_delinquent=delinquent==0,
-         delinquent_once=delinquent==delinquent_once & delinquent>0,
-         delinquent_more=delinquent>delinquent_once & delinquent>0) %>%
-  group_by(never_delinquent, delinquent_once, delinquent_more) %>%
-  summarise(n=n_distinct(tu_id))
+portland_panel_tu_income <- portland_panel_tu_income %>%
+  spread(tu_income, n) %>%
+  mutate(n_account=`FALSE`+`TRUE`,
+         n_missing=`FALSE`) %>%
+  select(-`TRUE`, -`FALSE`) %>%
+  bind_rows(summarise(., 
+                      across(where(is.numeric), sum),
+                      across(where(is.character), ~'Total'))) %>%
+  mutate(share_delinquent=n_missing/n_account*100)
+
+tab <- TexRow(c("Assistance",
+                "Delinquent",
+                "\\# Accounts", 
+                "\\# Accounts Without TU",
+                "Share")) +
+  TexMidrule() +
+  TexRow(c("Tier 1", "Yes")) /
+  TexRow(portland_panel_tu_income[2, 3:5] %>% as.numeric(),
+         dec=c(0, 0, 1), percentage=c(FALSE, FALSE, TRUE)) +
+  TexRow(c("", "No")) /
+  TexRow(portland_panel_tu_income[1, 3:5] %>% as.numeric(),
+         dec=c(0, 0, 1), percentage=c(FALSE, FALSE, TRUE)) +
+  TexMidrule() +
+  TexRow(c("Tier 2", "Yes")) /
+  TexRow(portland_panel_tu_income[4, 3:5] %>% as.numeric(),
+         dec=c(0, 0, 1), percentage=c(FALSE, FALSE, TRUE)) +
+  TexRow(c("", "No")) /
+  TexRow(portland_panel_tu_income[3, 3:5] %>% as.numeric(),
+         dec=c(0, 0, 1), percentage=c(FALSE, FALSE, TRUE)) +
+  TexMidrule() +
+  TexRow(c("No Assistance", "Yes")) /
+  TexRow(portland_panel_tu_income[6, 3:5] %>% as.numeric(),
+         dec=c(0, 0, 1), percentage=c(FALSE, FALSE, TRUE)) +
+  TexRow(c("", "No")) /
+  TexRow(portland_panel_tu_income[5, 3:5] %>% as.numeric(),
+         dec=c(0, 0, 1), percentage=c(FALSE, FALSE, TRUE)) +
+  TexMidrule() +
+  TexRow(c("Total", "N/A")) /
+  TexRow(portland_panel_tu_income[7, 3:5] %>% as.numeric(),
+         dec=c(0, 0, 1), percentage=c(FALSE, FALSE, TRUE))
+
+TexSave(tab, filename="tu_match_income", positions=rep('c', 5),
+        output_path=output_dir, stand_alone=FALSE)
 
 # Financial assistance
 portland_panel_2024q2 <- portland_panel_estimation %>%
