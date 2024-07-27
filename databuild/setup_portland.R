@@ -167,9 +167,11 @@ financial_assist <- financial_assist %>%
          date_created=CREATED,
          date_updated=UPDATED)
 
-financial_assist_detail <- read_csv(file=paste0(data_dir, "/LINC.csv"))
-
-financial_assist_detail <- financial_assist_detail %>%
+financial_assist_detail <-
+  list.files(data_dir, recursive=TRUE, full.names=TRUE) %>% 
+  str_subset("LINC") %>%
+  lapply(read_csv) %>%
+  bind_rows %>%
   rename(bill_date=BILL_DT,
          final=FINAL,
          net_bill_amount=NET_BILL_AMT,
