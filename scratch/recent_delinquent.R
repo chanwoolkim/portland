@@ -193,6 +193,46 @@ tab <- TexRow(c("Assistance",
 TexSave(tab, filename="tu_match_income", positions=rep('c', 5),
         output_path=output_dir, stand_alone=FALSE)
 
+# TU income and credit info
+portland_panel_tu_summary <- portland_panel_2024q2 %>%
+  filter(!is.na(credit_score), !is.na(hh_income_estimate)) %>%
+  group_by(linc_tier_type, delinquent) %>%
+  summarise(mean_credit_score=mean(credit_score, na.rm=TRUE),
+            sd_credit_score=sd(credit_score, na.rm=TRUE),
+            mean_hh_income=mean(hh_income_estimate, na.rm=TRUE),
+            sd_hh_income=sd(hh_income_estimate, na.rm=TRUE),
+            n=n_distinct(tu_id)) %>%
+  ungroup()
+
+tab <- TexRow(c("", "", "Credit Score", "Estimated Household Income"), 
+              cspan=c(1, 1, 2, 2)) +
+  TexMidrule(list(c(3, 4), c(5, 6))) +
+  TexRow(c("Assistance", "Delinquent", "Mean", "SD", "Mean", "SD", "N")) +
+  TexMidrule() +
+  TexRow(c("Tier 1", "Yes")) /
+  TexRow(portland_panel_tu_summary[2, 3:7] %>% as.numeric(),
+         dec=rep(0, 5)) +
+  TexRow(c("", "No")) /
+  TexRow(portland_panel_tu_summary[1, 3:7] %>% as.numeric(),
+         dec=rep(0, 5)) +
+  TexMidrule() +
+  TexRow(c("Tier 2", "Yes")) /
+  TexRow(portland_panel_tu_summary[4, 3:7] %>% as.numeric(),
+         dec=rep(0, 5)) +
+  TexRow(c("", "No")) /
+  TexRow(portland_panel_tu_summary[3, 3:7] %>% as.numeric(),
+         dec=rep(0, 5)) +
+  TexMidrule() +
+  TexRow(c("No Assistance", "Yes")) /
+  TexRow(portland_panel_tu_summary[6, 3:7] %>% as.numeric(),
+         dec=rep(0, 5)) +
+  TexRow(c("", "No")) /
+  TexRow(portland_panel_tu_summary[5, 3:7] %>% as.numeric(),
+         dec=rep(0, 5))
+
+TexSave(tab, filename="tu_summary", positions=rep('c', 7),
+        output_path=output_dir, stand_alone=FALSE)
+
 # Financial assistance
 portland_panel_2024q2 <- portland_panel_estimation %>%
   filter(year(bill_date)==2024, quarter(bill_date)==1, type_code=="REGLR")
