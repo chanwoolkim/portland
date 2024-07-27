@@ -204,8 +204,8 @@ portland_panel_tu_summary <- portland_panel_2024q2 %>%
             n=n_distinct(tu_id)) %>%
   ungroup()
 
-tab <- TexRow(c("", "", "Credit Score", "Estimated Household Income"), 
-              cspan=c(1, 1, 2, 2)) +
+tab <- TexRow(c("", "", "Credit Score", "Estimated Household Income", ""), 
+              cspan=c(1, 1, 2, 2, 1)) +
   TexMidrule(list(c(3, 4), c(5, 6))) +
   TexRow(c("Assistance", "Delinquent", "Mean", "SD", "Mean", "SD", "N")) +
   TexMidrule() +
