@@ -232,34 +232,3 @@ tab <- TexRow(c("", "", "Credit Score", "Estimated Household Income", ""),
 
 TexSave(tab, filename="tu_summary", positions=rep('c', 7),
         output_path=output_dir, stand_alone=FALSE)
-
-# Financial assistance
-portland_panel_2024q2 <- portland_panel_estimation %>%
-  filter(year(bill_date)==2024, quarter(bill_date)==1, type_code=="REGLR")
-
-portland_panel_2024q2_fa <- portland_panel_2024q2 %>%
-  filter(!is.na(linc_tier_type), !senior_disabilities)
-
-portland_panel_2024q2_fa_summary <- portland_panel_2024q2_fa %>%
-  mutate(discount_rate=discount_assistance*(-1)/bill_before_assistance,
-         discount_rate=case_when(discount_rate<0 ~ 0,
-                                 discount_rate>1 ~ 1,
-                                 .default=discount_rate)) %>%
-  group_by(linc_tier_type, delinquent) %>%
-  summarise(mean_bill_before_assistance=mean(bill_before_assistance, na.rm=TRUE),
-            median_bill_before_assistance=median(bill_before_assistance, na.rm=TRUE),
-            sd_bill_before_assistance=sd(bill_before_assistance, na.rm=TRUE),
-            min_bill_before_assistance=min(bill_before_assistance, na.rm=TRUE),
-            max_bill_before_assistance=max(bill_before_assistance, na.rm=TRUE),
-            mean_net_after_assistance=mean(net_after_assistance, na.rm=TRUE),
-            median_net_after_assistance=median(net_after_assistance, na.rm=TRUE),
-            sd_net_after_assistance=sd(net_after_assistance, na.rm=TRUE),
-            min_net_after_assistance=min(net_after_assistance, na.rm=TRUE),
-            max_net_after_assistance=max(net_after_assistance, na.rm=TRUE),
-            mean_discount_rate=mean(discount_rate, na.rm=TRUE),
-            median_discount_rate=median(discount_rate, na.rm=TRUE),
-            sd_discount_rate=sd(discount_rate, na.rm=TRUE),
-            min_discount_rate=min(discount_rate, na.rm=TRUE),
-            max_discount_rate=max(discount_rate, na.rm=TRUE),
-            n=n_distinct(tu_id)) %>%
-  ungroup()
