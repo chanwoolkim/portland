@@ -13,8 +13,8 @@ account_info_subset <- account_info %>%
                               cycle_code %in% 90:92 ~ "BIMONTH",
                               .default="NOINFO")) %>%
   filter(occupancy_code %in% c("RESSF", "ASST")) %>%
-  select(account_number, cycle_num, cycle_code) %>%
-  distinct() %>%
+  select(tu_id, cycle_num, cycle_code) %>%
+  distinct(tu_id, cycle_code, .keep_all=TRUE) %>%
   mutate(account=TRUE)
 
 # Average payment arrangement amount
@@ -43,7 +43,7 @@ no_plan_bill <- bill_info_filtered %>%
                                   previous_bill_amount+total_payments,
                                   0),
          bill_year=year(bill_date)) %>%
-  select(account_number, person_number, due_date, bill_date,
+  select(tu_id, due_date, bill_date,
          bill_year, delinquent, delinquent_amount,
          previous_bill_amount, total_payments, ar_due_before_bill, ar_due_after_bill,
          source_code, type_code, is_off_cycle,
@@ -57,7 +57,7 @@ plan_bill <- bill_info_filtered %>%
                                   ar_due_before_bill,
                                   0),
          bill_year=year(bill_date)) %>%
-  select(account_number, person_number, due_date, bill_date,
+  select(tu_id, due_date, bill_date,
          bill_year, delinquent, delinquent_amount,
          previous_bill_amount, total_payments, ar_due_before_bill, ar_due_after_bill,
          source_code, type_code, is_off_cycle,
@@ -65,7 +65,7 @@ plan_bill <- bill_info_filtered %>%
 
 delinquency_status <- bind_rows(no_plan_bill, plan_bill) %>%
   left_join(account_info_subset,
-            by="account_number") %>%
+            by="tu_id") %>%
   filter(account, cycle_code!="NOINFO")
 
 # Payment arrangement amount
@@ -90,11 +90,11 @@ payment_arrange_amount <- payment_arrangement %>%
 
 # Payment arrangement
 payment_arrange_time <- payment_arrange_amount %>%
-  group_by(account_number) %>%
+  group_by(tu_id) %>%
   arrange(payment_arrange_start, by_group=TRUE) %>% 
   mutate(indx=c(0, cumsum(as.numeric(lead(payment_arrange_start)) >
                             cummax(as.numeric(payment_arrange_end)))[-n()])) %>%
-  group_by(account_number, indx) %>%
+  group_by(tu_id, indx) %>%
   summarise(terminated=any(status_code=="T"),
             payment_arrange_start=min(payment_arrange_start), 
             payment_arrange_end=max(payment_arrange_end)) %>%
@@ -108,7 +108,7 @@ payment_arrange_time <- payment_arrange_amount %>%
                                     payment_arrange_end))
 
 payment_arrange_time_count <- payment_arrange_time %>%
-  group_by(account_number) %>%
+  group_by(tu_id) %>%
   summarise(count=n())
 
 payment_arrange_time_count_1 <- payment_arrange_time_count %>%
@@ -118,22 +118,22 @@ payment_arrange_time_count_above_1 <- payment_arrange_time_count %>%
   filter(count>1)
 
 payment_arrange_time_above_1 <- payment_arrange_time %>%
-  filter(account_number %in% payment_arrange_time_count_above_1$account_number)
+  filter(tu_id %in% payment_arrange_time_count_above_1$tu_id)
 
 delinquency_status_none <- delinquency_status %>%
-  filter(!(account_number %in% c(payment_arrange_time_count_above_1$account_number,
-                                 payment_arrange_time_count_1$account_number))) %>%
+  filter(!(tu_id %in% c(payment_arrange_time_count_above_1$tu_id,
+                                 payment_arrange_time_count_1$tu_id))) %>%
   mutate(payment_arrange=FALSE,
          payment_arrange_status=NA)
 
 delinquency_status_sub <- delinquency_status %>%
-  filter(account_number %in% payment_arrange_time_count_above_1$account_number)
+  filter(tu_id %in% payment_arrange_time_count_above_1$tu_id)
 
 delinquency_status_rest <- delinquency_status %>%
-  filter(account_number %in% payment_arrange_time_count_1$account_number) %>%
+  filter(tu_id %in% payment_arrange_time_count_1$tu_id) %>%
   left_join(payment_arrange_time %>%
-              filter(account_number %in% payment_arrange_time_count_1$account_number),
-            by=c("account_number"="account_number")) %>%
+              filter(tu_id %in% payment_arrange_time_count_1$tu_id),
+            by=c("tu_id"="tu_id")) %>%
   rowwise() %>%
   mutate(payment_arrange=between(bill_date, payment_arrange_start, payment_arrange_end),
          payment_arrange_status=ifelse(payment_arrange, terminated, NA)) %>%
@@ -145,18 +145,18 @@ delinquency_status_sub <- delinquency_status_sub %>%
   rowwise() %>%
   mutate(payment_arrange=any(bill_date %between%
                                list(subset(payment_arrange_time_above_1,
-                                           account_number==account_number)$payment_arrange_start,
+                                           tu_id==tu_id)$payment_arrange_start,
                                     subset(payment_arrange_time_above_1,
-                                           account_number==account_number)$payment_arrange_end)),
+                                           tu_id==tu_id)$payment_arrange_end)),
          payment_arrange_status=
            ifelse(payment_arrange,
                   subset(payment_arrange_time_above_1,
-                         account_number==account_number)$terminated[
+                         tu_id==tu_id)$terminated[
                            which(bill_date %between%
                                    list(subset(payment_arrange_time_above_1,
-                                               account_number==account_number)$payment_arrange_start,
+                                               tu_id==tu_id)$payment_arrange_start,
                                         subset(payment_arrange_time_above_1,
-                                               account_number==account_number)$payment_arrange_end))],
+                                               tu_id==tu_id)$payment_arrange_end))],
                   NA)) %>%
   ungroup()
 
@@ -170,15 +170,15 @@ financial_assist_account <- financial_assist %>%
          financial_assist_end=mdy(expiration_date)) %>%
   filter(year(financial_assist_start)>=2019 |
            year(financial_assist_end)>=2019) %>%
-  select(account_number, financial_assist_start, financial_assist_end)
+  select(tu_id, financial_assist_start, financial_assist_end)
 
 # Financial assistance
 financial_assist_time <- financial_assist_account %>%
-  group_by(account_number) %>%
+  group_by(tu_id) %>%
   arrange(financial_assist_start, by_group=TRUE) %>% 
   mutate(indx=c(0, cumsum(as.numeric(lead(financial_assist_start)) >
                             cummax(as.numeric(financial_assist_end)))[-n()])) %>%
-  group_by(account_number, indx) %>%
+  group_by(tu_id, indx) %>%
   summarise(financial_assist_start=min(financial_assist_start), 
             financial_assist_end=max(financial_assist_end)) %>%
   select(-indx) %>%
@@ -191,7 +191,7 @@ financial_assist_time <- financial_assist_account %>%
                                      financial_assist_end))
 
 financial_assist_time_count <- financial_assist_time %>%
-  group_by(account_number) %>%
+  group_by(tu_id) %>%
   summarise(count=n())
 
 financial_assist_time_count_1 <- financial_assist_time_count %>%
@@ -201,21 +201,21 @@ financial_assist_time_count_above_1 <- financial_assist_time_count %>%
   filter(count>1)
 
 financial_assist_time_above_1 <- financial_assist_time %>%
-  filter(account_number %in% financial_assist_time_count_above_1$account_number)
+  filter(tu_id %in% financial_assist_time_count_above_1$tu_id)
 
 delinquency_status_none <- delinquency_status %>%
-  filter(!(account_number %in% c(financial_assist_time_count_above_1$account_number,
-                                 financial_assist_time_count_1$account_number))) %>%
+  filter(!(tu_id %in% c(financial_assist_time_count_above_1$tu_id,
+                                 financial_assist_time_count_1$tu_id))) %>%
   mutate(financial_assist=FALSE)
 
 delinquency_status_sub <- delinquency_status %>%
-  filter(account_number %in% financial_assist_time_count_above_1$account_number)
+  filter(tu_id %in% financial_assist_time_count_above_1$tu_id)
 
 delinquency_status_rest <- delinquency_status %>%
-  filter(account_number %in% financial_assist_time_count_1$account_number) %>%
+  filter(tu_id %in% financial_assist_time_count_1$tu_id) %>%
   left_join(financial_assist_time %>%
-              filter(account_number %in% financial_assist_time_count_1$account_number),
-            by=c("account_number"="account_number")) %>%
+              filter(tu_id %in% financial_assist_time_count_1$tu_id),
+            by=c("tu_id"="tu_id")) %>%
   rowwise() %>%
   mutate(financial_assist=between(bill_date, financial_assist_start, financial_assist_end)) %>%
   ungroup() %>%
@@ -226,9 +226,9 @@ delinquency_status_sub <- delinquency_status_sub %>%
   rowwise() %>%
   mutate(financial_assist=any(bill_date %between%
                                 list(subset(financial_assist_time_above_1,
-                                            account_number==account_number)$financial_assist_start,
+                                            tu_id==tu_id)$financial_assist_start,
                                      subset(financial_assist_time_above_1,
-                                            account_number==account_number)$financial_assist_end))) %>%
+                                            tu_id==tu_id)$financial_assist_end))) %>%
   ungroup()
 
 delinquency_status <- bind_rows(delinquency_status_sub,
@@ -238,8 +238,8 @@ delinquency_status <- bind_rows(delinquency_status_sub,
 # Cutoff/reconnect
 cutoff_reconnect <- cutoff_info %>%
   mutate(effective_date=mdy(effective_date)) %>%
-  arrange(account_number, effective_date) %>%
-  group_by(account_number) %>%
+  arrange(tu_id, effective_date) %>%
+  group_by(tu_id) %>%
   mutate(lead_cutoff=lead(request_type),
          lead_date=lead(effective_date)) %>%
   filter(request_type=="CUTOF") %>%
@@ -251,7 +251,7 @@ cutoff_reconnect$lead_cutoff[cutoff_reconnect$lead_cutoff=="CUTOF"] <- NA
 cutoff_reconnect <- cutoff_reconnect %>%
   select(-action_id, -action_code, 
          -request_number, -request_type,
-         -reveived_date, -scheduled_timestamp,
+         -received_date, -scheduled_timestamp,
          -resolution_code, -lead_cutoff) %>%
   rename(cutoff_date=effective_date,
          reconnect_date=lead_date)
@@ -262,11 +262,11 @@ cutoff_reconnect$reconnect_date[is.na(cutoff_reconnect$reconnect_date)] <-
   "2099-12-31"
 
 cutoff_time <- cutoff_reconnect %>%
-  group_by(account_number) %>%
+  group_by(tu_id) %>%
   arrange(cutoff_date, by_group=TRUE) %>% 
   mutate(indx=c(0, cumsum(as.numeric(lead(cutoff_date)) >
                             cummax(as.numeric(reconnect_date)))[-n()])) %>%
-  group_by(account_number, indx) %>%
+  group_by(tu_id, indx) %>%
   summarise(cutoff_start=min(cutoff_date), 
             cutoff_end=max(reconnect_date)) %>%
   select(-indx) %>%
@@ -279,7 +279,7 @@ cutoff_time <- cutoff_reconnect %>%
                            cutoff_end))
 
 cutoff_time_count <- cutoff_time %>%
-  group_by(account_number) %>%
+  group_by(tu_id) %>%
   summarise(count=n())
 
 cutoff_time_count_1 <- cutoff_time_count %>%
@@ -289,21 +289,21 @@ cutoff_time_count_above_1 <- cutoff_time_count %>%
   filter(count>1)
 
 cutoff_time_above_1 <- cutoff_time %>%
-  filter(account_number %in% cutoff_time_count_above_1$account_number)
+  filter(tu_id %in% cutoff_time_count_above_1$tu_id)
 
 delinquency_status_none <- delinquency_status %>%
-  filter(!(account_number %in% c(cutoff_time_count_above_1$account_number,
-                                 cutoff_time_count_1$account_number))) %>%
+  filter(!(tu_id %in% c(cutoff_time_count_above_1$tu_id,
+                                 cutoff_time_count_1$tu_id))) %>%
   mutate(cutoff=FALSE)
 
 delinquency_status_sub <- delinquency_status %>%
-  filter(account_number %in% cutoff_time_count_above_1$account_number)
+  filter(tu_id %in% cutoff_time_count_above_1$tu_id)
 
 delinquency_status_rest <- delinquency_status %>%
-  filter(account_number %in% cutoff_time_count_1$account_number) %>%
+  filter(tu_id %in% cutoff_time_count_1$tu_id) %>%
   left_join(cutoff_time %>%
-              filter(account_number %in% cutoff_time_count_1$account_number),
-            by=c("account_number"="account_number")) %>%
+              filter(tu_id %in% cutoff_time_count_1$tu_id),
+            by=c("tu_id"="tu_id")) %>%
   rowwise() %>%
   mutate(cutoff=between(bill_date, cutoff_start, cutoff_end)) %>%
   ungroup() %>%
@@ -314,9 +314,9 @@ delinquency_status_sub <- delinquency_status_sub %>%
   rowwise() %>%
   mutate(cutoff=any(bill_date %between%
                       list(subset(cutoff_time_above_1,
-                                  account_number==account_number)$cutoff_start,
+                                  tu_id==tu_id)$cutoff_start,
                            subset(cutoff_time_above_1,
-                                  account_number==account_number)$cutoff_end))) %>%
+                                  tu_id==tu_id)$cutoff_end))) %>%
   ungroup()
 
 delinquency_status <- bind_rows(delinquency_status_sub,
@@ -326,8 +326,8 @@ delinquency_status <- bind_rows(delinquency_status_sub,
 
 # Flag first bill and resumption
 delinquency_status <- delinquency_status %>%
-  arrange(account_number, bill_date) %>%
-  group_by(account_number) %>%
+  arrange(tu_id, bill_date) %>%
+  group_by(tu_id) %>%
   mutate(rnum=row_number(),
          lag_final=lag(type_code)) %>%
   ungroup() %>%

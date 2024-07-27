@@ -12,11 +12,11 @@ portland_panel <- portland_panel %>%
 # First aggregate consumption and relevant bills and assistances
 portland_panel_sub <- portland_panel %>%
   filter(source_code!="") %>%
-  arrange(account_number, bill_date) %>%
+  arrange(tu_id, bill_date) %>%
   mutate(bill_date=ifelse(source_code!="QB1", NA, bill_date)) %>%
   fill(bill_date, .direction="downup") %>%
   mutate(bill_date=as_date(bill_date)) %>%
-  group_by(account_number, bill_date) %>%
+  group_by(tu_id, bill_date) %>%
   summarise(across(c("payment_arrange", "payment_arrange_status", "financial_assist",
                      "cutoff",
                      "usage_bill_amount", "water_cons", "sewer_cons",
@@ -41,17 +41,17 @@ portland_panel_month <- portland_panel %>%
          -bill_penalty, -bill_donate, -bill_bankrupt, -bill_leaf,
          -net_after_assistance, -bill_before_assistance, -discount_assistance,
          -crisis_voucher_amount) %>%
-  left_join(portland_panel_sub, by=c("account_number", "bill_date"))
+  left_join(portland_panel_sub, by=c("tu_id", "bill_date"))
 
 portland_panel_estimation <- bind_rows(portland_panel_quarter, 
                                        portland_panel_month) %>%
-  arrange(account_number, bill_date)
+  arrange(tu_id, bill_date)
 
 rm(portland_panel_quarter, portland_panel_month, portland_panel_sub)
 
 # Replace values as needed
 portland_panel_estimation <- portland_panel_estimation %>%
-  group_by(account_number) %>%
+  group_by(tu_id) %>%
   mutate(source_num=substr(source_code, 3, 3) %>% as.numeric(),
          across(c("source_num", "type_code", "previous_bill", "total_payments"),
                 .fns=list(lag=~lag(.))),

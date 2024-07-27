@@ -47,6 +47,7 @@ source(paste0(code_dir, "/databuild/bill_usage_clean.R"))
 source(paste0(code_dir, "/databuild/delinquency_construct.R"))
 source(paste0(code_dir, "/databuild/panel_construct.R"))
 source(paste0(code_dir, "/databuild/panel_estimation_construct.R"))
+source(paste0(code_dir, "/databuild/merge_portland_transunion.R"))
 
 end_time <- Sys.time()
 end_time-start_time

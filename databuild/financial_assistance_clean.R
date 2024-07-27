@@ -22,7 +22,7 @@ payment_arrange_amount <- payment_arrangement %>%
   right_join(payment_arrange_amount, by="payment_plan_id") %>%
   filter(payment_arrange_start_year>=2019 |
            payment_arrange_end_year>=2019) %>%
-  group_by(account_number) %>%
+  group_by(tu_id) %>%
   summarise(arrange_amount_due=sum(amount_due, na.rm=TRUE),
             arrange_amount_paid=sum(amount_paid, na.rm=TRUE),
             arrange_amount_terminated=sum(amount_outstanding, na.rm=TRUE)) %>%
@@ -58,7 +58,7 @@ payment_arrange_by_year <- payment_arrangement %>%
            between(2024,
                    year(payment_arrange_start),
                    year(payment_arrange_end))) %>%
-  group_by(account_number) %>%
+  group_by(tu_id) %>%
   summarise(payment_arrange_2019=sum(payment_arrange_2019),
             payment_arrange_2020=sum(payment_arrange_2020),
             payment_arrange_2021=sum(payment_arrange_2021),
@@ -76,49 +76,31 @@ payment_arrange_by_year <- payment_arrangement %>%
 
 
 # Financial assistance by LINC tier ####
-financial_assist_csv <- financial_assist_detail %>%
-  filter(grepl("/", bill_date)) %>%
+financial_assist_detail <- financial_assist_detail %>%
   mutate_at(c("bill_date",
               "linc_effective_date", 
               "linc_expiry_date", 
               "date_last_updated"),
             mdy)
 
-financial_assist_xlsx <- financial_assist_detail %>%
-  filter(!grepl("/", bill_date)) %>%
-  mutate_at(c("bill_date", 
-              "linc_effective_date",
-              "linc_expiry_date",
-              "date_last_updated"),
-            function(x) {as_date(as.numeric(x), origin="1900-01-01")})
-
-financial_assist_detail <- bind_rows(financial_assist_csv, financial_assist_xlsx) %>%
+financial_assist_detail <- financial_assist_detail %>%
   mutate(bill_year=year(bill_date),
          linc_expiry_year=year(linc_expiry_date),
-         senior_disabilities=linc_expiry_year>2050,
-         penalty_fees=ifelse(is.na(penalty_fees),
-                             penalty_fee,
-                             penalty_fees),
-         penalty_fees_reversed=ifelse(is.na(penalty_fees_reversed),
-                                      penalty_fee_reversed,
-                                      penalty_fees_reversed)) %>%
-  select(-penalty_fee, -penalty_fee_reversed) %>%
-  mutate_at(c("location_number",
-              "net_bill_amount", "billed_amount_before_discount", "linc_discount_amount",
+         senior_disabilities=linc_expiry_year>2050) %>%
+  mutate_at(c("net_bill_amount", "billed_amount_before_discount", "linc_discount_amount",
               "water_consumption", "sewer_consumption",
-              "penalty_fees", "penalty_fees_reversed",
               "crisis_voucher_amount"),
             as.numeric) %>%
   distinct()
 
 linc_info <- financial_assist_detail %>%
   mutate(tier=as.numeric(gsub("Tier", "", linc_tier_type))) %>%
-  group_by(location_number, bill_year) %>%
+  group_by(tu_id, bill_year) %>%
   summarise(tier=max(tier),
             discount_amount=(-1)*sum(linc_discount_amount, na.rm=TRUE),
             crisis_voucher=(-1)*sum(crisis_voucher_amount, na.rm=TRUE)) %>%
   ungroup() %>%
-  pivot_wider(id_cols=location_number, 
+  pivot_wider(id_cols=tu_id, 
               names_from=bill_year, 
               values_from=c("tier",
                             "discount_amount",
@@ -155,7 +137,7 @@ financial_assist_by_year <- financial_assist %>%
            between(2024,
                    year(financial_assist_start),
                    year(financial_assist_end))) %>%
-  group_by(account_number) %>%
+  group_by(tu_id) %>%
   summarise(financial_assist_2019=sum(financial_assist_2019),
             financial_assist_2020=sum(financial_assist_2020),
             financial_assist_2021=sum(financial_assist_2021),

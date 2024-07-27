@@ -26,13 +26,13 @@ no_plan_bill <- bill_info_filtered %>%
                                   previous_bill_amount+total_payments,
                                   0),
          due_year=year(due_date)) %>%
-  group_by(account_number, due_year) %>%
+  group_by(tu_id, due_year) %>%
   summarise(n_bill=n(),
             delinquent=sum(delinquent, na.rm=TRUE),
             delinquent_amount=sum(delinquent_amount, na.rm=TRUE),
             total_bill=sum(previous_bill_amount, na.rm=TRUE)) %>%
   ungroup() %>%
-  select(account_number, due_year, n_bill, delinquent, delinquent_amount, total_bill)
+  select(tu_id, due_year, n_bill, delinquent, delinquent_amount, total_bill)
 
 # Those on a payment plan
 plan_bill <- bill_info_filtered %>%
@@ -42,16 +42,16 @@ plan_bill <- bill_info_filtered %>%
                                   ar_due_before_bill,
                                   0),
          due_year=year(due_date)) %>%
-  group_by(account_number, due_year) %>%
+  group_by(tu_id, due_year) %>%
   summarise(n_bill=n(),
             delinquent=sum(delinquent, na.rm=TRUE),
             delinquent_amount=sum(delinquent_amount, na.rm=TRUE),
             total_bill=sum(previous_bill_amount[source_code=="QB2"], na.rm=TRUE)) %>%
   ungroup() %>%
-  select(account_number, due_year, n_bill, delinquent, delinquent_amount, total_bill)
+  select(tu_id, due_year, n_bill, delinquent, delinquent_amount, total_bill)
 
 delinquency_status <- bind_rows(no_plan_bill, plan_bill) %>%
-  group_by(account_number, due_year) %>%
+  group_by(tu_id, due_year) %>%
   summarise(n_bill=sum(n_bill, na.rm=TRUE),
             delinquent=sum(delinquent, na.rm=TRUE),
             delinquent_amount=sum(delinquent_amount, na.rm=TRUE),
@@ -65,7 +65,7 @@ delinquency_status <- bind_rows(no_plan_bill, plan_bill) %>%
          delinquency_amount_rate=ifelse(is.na(delinquency_amount_rate),
                                         0,
                                         delinquency_amount_rate)) %>%
-  pivot_wider(id_cols=account_number, 
+  pivot_wider(id_cols=tu_id, 
               names_from=due_year, 
               values_from=c("n_bill",
                             "delinquent",
@@ -80,8 +80,8 @@ delinquency_status <- bind_rows(no_plan_bill, plan_bill) %>%
 # Cutoff by year ####
 cutoff_reconnect <- cutoff_info %>%
   mutate(effective_date=mdy(effective_date)) %>%
-  arrange(account_number, effective_date) %>%
-  group_by(account_number) %>%
+  arrange(tu_id, effective_date) %>%
+  group_by(tu_id) %>%
   mutate(lead_cutoff=lead(request_type),
          lead_date=lead(effective_date)) %>%
   filter(request_type=="CUTOF") %>%
@@ -93,7 +93,7 @@ cutoff_reconnect$lead_cutoff[cutoff_reconnect$lead_cutoff=="CUTOF"] <- NA
 cutoff_reconnect <- cutoff_reconnect %>%
   select(-action_id, -action_code, 
          -request_number, -request_type,
-         -reveived_date, -scheduled_timestamp,
+         -received_date, -scheduled_timestamp,
          -resolution_code, -lead_cutoff) %>%
   rename(cutoff_date=effective_date,
          reconnect_date=lead_date)
@@ -115,7 +115,7 @@ cutoff_reconnect <- cutoff_reconnect %>%
            between(2023, year(cutoff_date), year(reconnect_date)),
          cutoff_2024=
            between(2024, year(cutoff_date), year(reconnect_date))) %>%
-  group_by(account_number, person_number, location_number) %>%
+  group_by(tu_id) %>%
   summarise(cutoff_2019=sum(cutoff_2019),
             cutoff_2020=sum(cutoff_2020),
             cutoff_2021=sum(cutoff_2021),

@@ -5,15 +5,14 @@ load(file=paste0(working_data_dir, "/financial_assistance_info.RData"))
 load(file=paste0(working_data_dir, "/usage_financial.RData"))
 load(file=paste0(working_data_dir, "/financial_info_leftover.RData"))
 load(file=paste0(working_data_dir, "/delinquency_status.RData"))
-load(file=paste0(working_data_dir, "/geocode_address_info_subset.RData"))
 
 
 # Create final panel dataset ####
 # Add in usage and detailed bill info
 portland_panel <- delinquency_status %>%
   select(-delinquent, -delinquent_amount) %>%
-  left_join(usage_info, by=c("account_number", "bill_date"="bill_run_date")) %>%
-  left_join(financial_info, by=c("account_number", "bill_date")) %>%
+  left_join(usage_info, by=c("tu_id", "bill_date"="bill_run_date")) %>%
+  left_join(financial_info, by=c("tu_id", "bill_date")) %>%
   select(-bill_water_cons, -bill_sewer_cons, -bill_payment)
 
 # Define fixed and variable prices
@@ -36,47 +35,43 @@ portland_panel <- portland_panel %>%
 # Merge in location from financial info
 portland_panel <- portland_panel %>%
   left_join(location_account_relation %>%
-              select(account_number, location_number) %>%
+              select(tu_id, tract_id) %>%
               distinct(),
-            by="account_number")
+            by="tu_id") %>%
+  rename(census_tract=tract_id)
 
+# Drop those with duplicate bills (issues with TU_ID assignment)
 portland_panel <- portland_panel %>%
-  distinct(account_number, person_number, due_date, bill_date, .keep_all=TRUE)
-
-portland_panel <- portland_panel %>%
-  left_join(geocode_address_info_subset %>%
-              select(location_number, census_tract),
-            by="location_number")
+  distinct(tu_id, due_date, bill_date, .keep_all=TRUE)
 
 # Get financial assistance info
 financial_assist_account <- financial_assist_detail %>%
-  filter(!is.na(account_number)) %>%
-  mutate(account_number=as.numeric(account_number)) %>%
-  select(account_number, bill_date) %>%
+  filter(!is.na(tu_id)) %>%
+  select(tu_id, bill_date) %>%
   mutate(match=TRUE)
 
 portland_panel_account <- portland_panel %>%
   left_join(financial_assist_account,
-            by=c("account_number", "bill_date")) %>%
+            by=c("tu_id", "bill_date")) %>%
   filter(match) %>%
   left_join(financial_assist_detail %>%
-              filter(!is.na(account_number)) %>%
-              mutate(account_number=as.numeric(account_number)) %>%
-              select(account_number, bill_date, linc_tier_type,
+              filter(!is.na(tu_id)) %>%
+              distinct(tu_id, bill_date, .keep_all=TRUE) %>%
+              select(tu_id, bill_date, linc_tier_type,
                      net_bill_amount, billed_amount_before_discount, linc_discount_amount,
                      crisis_voucher_amount, senior_disabilities),
-            by=c("account_number", "bill_date"))
+            by=c("tu_id", "bill_date"))
 
 portland_panel_location <- portland_panel %>%
   left_join(financial_assist_account,
-            by=c("account_number", "bill_date")) %>%
+            by=c("tu_id", "bill_date")) %>%
   filter(is.na(match)) %>%
   left_join(financial_assist_detail %>%
-              filter(is.na(account_number)) %>%
-              select(location_number, bill_date, linc_tier_type,
+              filter(is.na(tu_id)) %>%
+              select(tu_id, bill_date, linc_tier_type,
                      net_bill_amount, billed_amount_before_discount, linc_discount_amount,
                      crisis_voucher_amount, senior_disabilities),
-            by=c("location_number", "bill_date"))
+            by=c("tu_id", "bill_date"))
 
 portland_panel <- bind_rows(portland_panel_account, portland_panel_location) %>%
   select(-match)
@@ -84,18 +79,18 @@ portland_panel <- bind_rows(portland_panel_account, portland_panel_location) %>%
 # Add in writeoff info
 account_writeoff <- account_info %>%
   filter(status_code=="WRTOF") %>%
-  select(account_number, last_bill_date, writeoff_amount=last_bill_amount) %>%
+  select(tu_id, last_bill_date, writeoff_amount=last_bill_amount) %>%
   mutate(last_bill_date=mdy(last_bill_date))
 
 portland_panel <- portland_panel %>%
   left_join(account_writeoff,
-            by=c("account_number", "bill_date"="last_bill_date"))
+            by=c("tu_id", "bill_date"="last_bill_date"))
 
 # Add in collection info
 collection_amount <- collection_amount %>%
   mutate(sent_date=mdy(sent_date)) %>%
-  arrange(account_number, sent_date) %>%
-  group_by(account_number) %>%
+  arrange(tu_id, sent_date) %>%
+  group_by(tu_id) %>%
   mutate(rnum=row_number()) %>%
   filter(rnum==max(rnum)) %>%
   ungroup()
@@ -110,8 +105,8 @@ portland_non_final <- portland_panel %>%
 
 portland_final <- portland_final %>%
   left_join(collection_amount %>%
-              select(account_number, amount_due, collection_amount),
-            by=c("account_number"))
+              select(tu_id, amount_due, collection_amount),
+            by=c("tu_id"))
 
 portland_panel <- bind_rows(portland_final, portland_non_final)
 
@@ -129,7 +124,7 @@ portland_panel <- portland_panel %>%
 
 # First sequence must start with QB1, assign group numbers
 portland_panel_sub <- portland_panel_sub %>%
-  arrange(account_number, bill_date) %>%
+  arrange(tu_id, bill_date) %>%
   mutate(source_num=substr(source_code, 3, 3) %>% as.numeric(),
          source_lag=lag(source_num),
          source_lag_lag=lag(source_lag),
@@ -143,13 +138,13 @@ portland_panel_sub <- portland_panel_sub %>%
   filter(to_keep)
 
 portland_panel_sub <- portland_panel_sub %>%
-  arrange(source_num, account_number, bill_date) %>%
-  group_by(account_number) %>%
+  arrange(source_num, tu_id, bill_date) %>%
+  group_by(tu_id) %>%
   mutate(group_num=row_number()) %>%
   ungroup() %>%
-  arrange(account_number, bill_date) %>%
+  arrange(tu_id, bill_date) %>%
   mutate(group_num=ifelse(source_num!=1, NA, group_num)) %>%
-  group_by(account_number) %>%
+  group_by(tu_id) %>%
   fill(group_num) %>%
   ungroup()
 
@@ -159,7 +154,7 @@ portland_panel_sub <- portland_panel_sub %>%
   select(-source_num, -source_lag, -source_lag_lag, -to_keep, -group_num)
 
 portland_panel <- bind_rows(portland_panel_sub, portland_panel, portland_panel_na) %>%
-  arrange(account_number, bill_date) %>%
+  arrange(tu_id, bill_date) %>%
   rename(tract=census_tract,
          previous_bill=previous_bill_amount,
          total_payments=total_payments,
@@ -177,7 +172,7 @@ portland_panel <- bind_rows(portland_panel_sub, portland_panel, portland_panel_n
 
 # Select payments to final bill
 portland_panel_fin <- portland_panel %>%
-  group_by(account_number) %>%
+  group_by(tu_id) %>%
   mutate(next_bill_date=lead(bill_date)) %>%
   filter(type_code=="FINAL") %>%
   mutate(next_bill_date=if_else(is.na(next_bill_date),
@@ -188,17 +183,17 @@ financial_info_leftover <- financial_info_leftover %>%
   mutate(transaction_date=mdy(transaction_date),
          bill_date=mdy(bill_date)) %>%
   left_join(portland_panel_fin %>%
-              select(account_number, bill_date, next_bill_date),
-            by=c("account_number", "bill_date")) %>%
+              select(tu_id, bill_date, next_bill_date),
+            by=c("tu_id", "bill_date")) %>%
   filter(!is.na(bill_date),
          transaction_date>=bill_date,
          transaction_date<next_bill_date) %>%
-  group_by(account_number, bill_date) %>%
+  group_by(tu_id, bill_date) %>%
   summarise(final_payment=sum(adjusted_amount, na.rm=TRUE))
 
 portland_panel <- portland_panel %>%
   left_join(financial_info_leftover,
-            by=c("account_number", "bill_date"))
+            by=c("tu_id", "bill_date"))
 
 # Add in final bill as debt, 2018-12-31 as 2019-01-01
 portland_panel <- portland_panel %>%
@@ -215,8 +210,8 @@ portland_panel <- portland_panel %>%
 # Flag "assumed" resumption (same account)
 portland_panel <- portland_panel %>%
   mutate(last_leftover=current_bill+final_payment) %>%
-  arrange(account_number, bill_date) %>%
-  group_by(account_number) %>%
+  arrange(tu_id, bill_date) %>%
+  group_by(tu_id) %>%
   mutate(lag_leftover=lag(last_leftover)) %>%
   ungroup() %>%
   mutate(type_code=
@@ -224,36 +219,6 @@ portland_panel <- portland_panel %>%
                        previous_bill==lag_leftover ~ "ASSUME_ACCOUNT",
                      .default=type_code)) %>%
   select(-last_leftover, -lag_leftover)
-
-# Flag moves to new location (same person)
-portland_panel <- portland_panel %>%
-  mutate(last_leftover=current_bill+final_payment) %>%
-  arrange(person_number, bill_date) %>%
-  group_by(person_number) %>%
-  mutate(lag_account_number=lag(account_number),
-         lag_leftover=lag(last_leftover)) %>%
-  ungroup() %>%
-  mutate(type_code=
-           case_when(account_number!=lag_account_number & 
-                       type_code=="RESUME" &
-                       previous_bill==lag_leftover ~ "ASSUME_LOCATION",
-                     .default=type_code)) %>%
-  select(-last_leftover, -lag_leftover, -lag_account_number)
-
-# Flag transfer of responsibility (same location)
-portland_panel <- portland_panel %>%
-  mutate(last_leftover=current_bill+final_payment) %>%
-  arrange(location_number, bill_date) %>%
-  group_by(location_number) %>%
-  mutate(lag_account_number=lag(account_number),
-         lag_leftover=lag(last_leftover)) %>%
-  ungroup() %>%
-  mutate(type_code=
-           case_when(account_number!=lag_account_number & 
-                       type_code=="RESUME" &
-                       previous_bill==lag_leftover ~ "ASSUME_PERSON",
-                     .default=type_code)) %>%
-  select(-last_leftover, -lag_leftover, -lag_account_number)
 
 # Save the dataset
 save(portland_panel,
