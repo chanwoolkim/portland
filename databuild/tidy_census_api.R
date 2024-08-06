@@ -73,7 +73,8 @@ acs_tract <- get_acs(
   key=accessKey,
   output="wide",
   state="OR",
-  county=c("Multnomah", "Washington", "Clackamas")
+  county=c("Multnomah", "Washington", "Clackamas"),
+  year=2021
 )
 
 acs_tract_geometry <- get_acs(
@@ -83,6 +84,7 @@ acs_tract_geometry <- get_acs(
   output="wide",
   state="OR",
   county=c("Multnomah", "Washington", "Clackamas"),
+  year=2021,
   geometry=TRUE,
 )
 save(acs_tract, acs_tract_geometry,
