@@ -12,8 +12,7 @@ tu_demographic <- list.files(tu_data_dir, recursive=TRUE, full.names=TRUE) %>%
 
 tu_data <- tu_data %>%
   left_join(tu_demographic,
-            by=c("customerInput_tusequencenumber"="customerInput_tusequencenumber0029",
-                 "customerInput_customerInputPermId"="PermID"))
+            by=c("customerInput_tusequencenumber"="IN1"))
 
 tu_data <- tu_data %>%
   transmute(state=customerInput_state,
@@ -23,15 +22,18 @@ tu_data <- tu_data %>%
             tu_id=customerInput_tusequencenumber %>% as.numeric(),
             tu_permid=customerInput_customerInputPermId,
             credit_date=creditAsOfDate_creditAsOfDate,
-            credit_score=cvtg03_finscore,
-            advrs1=cvtg03_advrs1,
-            advrs2=cvtg03_advrs2,
-            advrs3=cvtg03_advrs3,
-            advrs4=cvtg03_advrs4,
-            edie=edie04_score,
-            etie=etie04_score,
-            hh_income_estimate=Estimated_HH_Income,
-            ethnicity=Ethnicity_Group) %>%
+            credit_score=cvtg03_finscore %>% as.numeric(),
+            advrs1=cvtg03_advrs1 %>% as.numeric(),
+            advrs2=cvtg03_advrs2 %>% as.numeric(),
+            advrs3=cvtg03_advrs3 %>% as.numeric(),
+            advrs4=cvtg03_advrs4 %>% as.numeric(),
+            edie=edie04_score %>% as.numeric(),
+            etie=etie04_score %>% as.numeric(),
+            hh_income_estimate=EstHHIncome %>% as.numeric(),
+            ethnicity=case_when(
+              !is.na(GroupD) ~ 1,
+              !is.na(GroupB) ~ 0,
+              .default=NA)) %>%
   distinct()
 
 

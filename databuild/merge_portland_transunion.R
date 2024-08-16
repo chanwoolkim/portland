@@ -7,7 +7,7 @@ load(file=paste0(working_data_dir, "/tu_data.RData"))
 tu_data <- tu_data %>%
   select(tu_id,
          credit_date, credit_score,
-         hh_income_estimate, 
+         etie, hh_income_estimate, 
          ethnicity) %>%
   mutate(year_credit=year(credit_date),
          quarter_credit=quarter(credit_date),

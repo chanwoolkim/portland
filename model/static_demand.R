@@ -21,15 +21,16 @@ output_dir <- paste0(code_dir, "/output")
 #---------+---------+---------+---------+---------+---------+
 # Load data
 #---------+---------+---------+---------+---------+---------+
-load(file=paste0(working_data_dir, "/portland_panel_estimation.RData"))
-df = portland_panel_estimation
+load(file=paste0(working_data_dir, "/portland_transunion.RData"))
+df = portland_transunion
 
 #---------+---------+---------+---------+---------+---------+
 # set up estimation data
 # (1) Create Variables for analysis
 #---------+---------+---------+---------+---------+---------+
-df$month = month(df$DUE_DT)
-df$year = year(df$DUE_DT)
+df$month = month(df$due_date)
+df$year = year(df$due_date)
+df = df[df$year>=2019,]
 df$time = (df$year-min(df$year))*12+ df$month
 df$total_payments = -df$total_payments
 
@@ -37,16 +38,20 @@ df$total_payments = -df$total_payments
 #---------+---------+---------+---------+---------+---------+
 # set up estimation data
 # (2) Filters
-#  - BILL_TP=="FIRST" (no previous bills so first invoice so off-cycle)
-#  - BILL_TP=="FINAL" (final bill so off-cycle)
-#  - BILL_TP=="RESUME" (like a first bill after account frozen)
+#  - type_code=="FIRST" (no previous bills so first invoice so off-cycle)
+#  - type_code=="FINAL" (final bill so off-cycle)
+#  - type_code=="RESUME" (like a first bill after account frozen)
 #  - agg == "CHOP" (problems with our aggreation period)
-#  - CYCLE_CD != "QUARTER" (i.e., monthly and bi-monthly bills dropped)
+#  - cycle_code != "QUARTER" (i.e., monthly and bi-monthly bills dropped)
 #---------+---------+---------+---------+---------+---------+
 
 # define filters
-keep_types = (df$BILL_TP!="FIRST" & df$BILL_TP!="FINAL" & df$BILL_TP!="RESUME" & df$agg!="CHOP" & df$CYCLE_CD=="QUARTER")
-
+keep_types = (df$type_code!="FIRST" & 
+                df$type_code!="FINAL" & 
+                df$type_code!="RESUME" & 
+                df$agg!="CHOP" & 
+                df$cycle_code=="QUARTER")
+df = df[keep_types==1,]
 
 # retain periods with complete account information
 keep_time = df$time<=67
@@ -58,8 +63,7 @@ keep_pay = df$total_payments>=0
 df = df[df$total_payments>=0,]
 
 
-df = df[keep_types==1 & keep_time==1 & keep_pay==1,]
-df1 = pdata.frame(df,index = c("ACCOUNT_NO","time"))
+df1 = pdata.frame(df,index = c("tu_id","time"))
 
 summary(felm( df$delinquent ~ df$price_water+df$price_sewer + df$price_discount| df$ACCOUNT_NO + df$time))
 summary(felm( df$delinquent ~ df$bill_water_cons + df$price_water+df$price_sewer + df$price_discount| df$ACCOUNT_NO+df$time))
