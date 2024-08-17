@@ -12,10 +12,15 @@ setwd(wd)
 wd <- getwd()
 code_dir <- paste0(wd, "/code")
 data_dir <- paste0(wd, "/data/raw/servus")
+tu_data_dir <- paste0(wd, "/data/raw/TU")
 auxiliary_data_dir <- paste0(wd, "/data/auxiliary")
 working_data_dir <- paste0(wd, "/data/analysis")
 output_dir <- paste0(code_dir, "/output")
 
+
+#---------+---------+---------+---------+---------+---------+
+# Load Utilities
+#---------+---------+---------+---------+---------+---------+
 source(paste0(code_dir, "/utilities/preliminary.R"))
 
 # Load data
@@ -275,3 +280,26 @@ tab <- TexRow(c("", "Credit Score", "Estimated Household Income", "Ethnicity", "
 
 TexSave(tab, filename="tu_summary", positions=rep('c', 9),
         output_path=output_dir, stand_alone=FALSE)
+
+# % unpaid conditional on defaulting
+portland_panel_2024q2 <- portland_panel_2024q2 %>%
+  filter(!is.na(credit_score), !is.na(etie)) %>%
+  mutate(unpaid_percent=leftover_debt/previous_bill,
+         unpaid_percent=case_when(
+           unpaid_percent>1 ~ 1,
+           unpaid_percent<0 ~ 0,
+           TRUE ~ unpaid_percent)) %>%
+  filter(delinquent)
+
+gg <- ggplot() +
+  geom_histogram(data=portland_panel_2024q2, 
+                 aes(x=unpaid_percent), 
+                 bins=20) +
+  labs(x="Unpaid Percent",
+       y="Number of Accounts") +
+  scale_x_continuous(labels=scales::percent) +
+  fte_theme()
+gg
+ggsave(gg,
+       filename=paste0(output_dir, "/unpaid_percent.png"),
+       width=6, height=4)
