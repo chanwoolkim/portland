@@ -27,7 +27,8 @@ source(paste0(code_dir, "/utilities/preliminary.R"))
 load(paste0(working_data_dir, "/portland_transunion.RData"))
 
 portland_panel_2024q2 <- portland_transunion %>%
-  filter(year(bill_date)==2024, quarter(bill_date)==2)
+  filter(year(bill_date)==2024, quarter(bill_date)==2) %>%
+  mutate(etie=etie*1000)
 
 portland_panel_2024q2 %>%
   select(tu_id) %>%
@@ -149,7 +150,7 @@ TexSave(tab, filename="tu_match", positions=rep('c', 5),
 
 # TU match with income and ethnicity info
 portland_panel_tu_all <- portland_panel_2024q2 %>%
-  mutate(tu_all=!is.na(hh_income_estimate) & !is.na(ethnicity)) %>%
+  mutate(tu_all=!is.na(etie)) %>%
   group_by(linc_tier_type, delinquent, tu_all) %>%
   summarise(n=n_distinct(tu_id)) %>%
   ungroup()
@@ -201,16 +202,16 @@ TexSave(tab, filename="tu_match_all", positions=rep('c', 5),
 # TU income, ethnicity, and credit info
 portland_panel_tu_credit <- portland_panel_2024q2 %>%
   filter(!is.na(credit_score)) %>%
-  mutate(missing_income_ethnicity=is.na(hh_income_estimate) | is.na(ethnicity)) %>%
-  group_by(linc_tier_type, delinquent, missing_income_ethnicity) %>%
+  mutate(missing_income=is.na(etie)) %>%
+  group_by(linc_tier_type, delinquent, missing_income) %>%
   summarise(mean_credit_score=mean(credit_score, na.rm=TRUE),
             sd_credit_score=sd(credit_score, na.rm=TRUE),
             n=n_distinct(tu_id)) %>%
   ungroup() %>%
-  pivot_wider(names_from=missing_income_ethnicity,
+  pivot_wider(names_from=missing_income,
               values_from=c(mean_credit_score, sd_credit_score, n))
 
-tab <- TexRow(c("", "Non-Missing Income/Ethnicity", "Missing Income/Ethnicity"), 
+tab <- TexRow(c("", "Non-Missing Income", "Missing Income"), 
               cspan=c(2, 3, 3)) +
   TexMidrule(list(c(3, 5), c(6, 8))) +
   TexRow(c("Assistance", "Delinquent", "Mean", "SD", "N", "Mean", "SD","N")) +
@@ -241,44 +242,42 @@ TexSave(tab, filename="tu_credit", positions=rep('c', 8),
 
 # TU income, ethnicity, and credit info
 portland_panel_tu_summary <- portland_panel_2024q2 %>%
-  filter(!is.na(credit_score), !is.na(hh_income_estimate), !is.na(ethnicity)) %>%
+  filter(!is.na(credit_score), !is.na(etie)) %>%
   group_by(linc_tier_type, delinquent) %>%
   summarise(mean_credit_score=mean(credit_score, na.rm=TRUE),
             sd_credit_score=sd(credit_score, na.rm=TRUE),
-            mean_hh_income=mean(hh_income_estimate, na.rm=TRUE),
-            sd_hh_income=sd(hh_income_estimate, na.rm=TRUE),
-            mean_ethnicity=mean(ethnicity, na.rm=TRUE),
-            sd_ethnicity=sd(ethnicity, na.rm=TRUE),
+            mean_hh_income=mean(etie, na.rm=TRUE),
+            sd_hh_income=sd(etie, na.rm=TRUE),
             n=n_distinct(tu_id)) %>%
   ungroup()
 
-tab <- TexRow(c("", "Credit Score", "Estimated Household Income", "Ethnicity", ""), 
-              cspan=c(2, 2, 2, 2, 1)) +
-  TexMidrule(list(c(3, 4), c(5, 6), c(7, 8))) +
-  TexRow(c("Assistance", "Delinquent", "Mean", "SD", "Mean", "SD", "Mean", "SD","N")) +
+tab <- TexRow(c("", "Credit Score", "Estimated Household Income", ""), 
+              cspan=c(2, 2, 2, 1)) +
+  TexMidrule(list(c(3, 4), c(5, 6))) +
+  TexRow(c("Assistance", "Delinquent", "Mean", "SD", "Mean", "SD", "N")) +
   TexMidrule() +
   TexRow(c("Tier 1", "Yes")) /
-  TexRow(portland_panel_tu_summary[2, 3:9] %>% as.numeric(),
-         dec=rep(0, 7)) +
+  TexRow(portland_panel_tu_summary[2, 3:7] %>% as.numeric(),
+         dec=rep(0, 5)) +
   TexRow(c("", "No")) /
-  TexRow(portland_panel_tu_summary[1, 3:9] %>% as.numeric(),
-         dec=rep(0, 7)) +
+  TexRow(portland_panel_tu_summary[1, 3:7] %>% as.numeric(),
+         dec=rep(0, 5)) +
   TexMidrule() +
   TexRow(c("Tier 2", "Yes")) /
-  TexRow(portland_panel_tu_summary[4, 3:9] %>% as.numeric(),
-         dec=rep(0, 7)) +
+  TexRow(portland_panel_tu_summary[4, 3:7] %>% as.numeric(),
+         dec=rep(0, 5)) +
   TexRow(c("", "No")) /
-  TexRow(portland_panel_tu_summary[3, 3:9] %>% as.numeric(),
-         dec=rep(0, 7)) +
+  TexRow(portland_panel_tu_summary[3, 3:7] %>% as.numeric(),
+         dec=rep(0, 5)) +
   TexMidrule() +
   TexRow(c("No Assistance", "Yes")) /
-  TexRow(portland_panel_tu_summary[6, 3:9] %>% as.numeric(),
-         dec=rep(0, 7)) +
+  TexRow(portland_panel_tu_summary[6, 3:7] %>% as.numeric(),
+         dec=rep(0, 5)) +
   TexRow(c("", "No")) /
-  TexRow(portland_panel_tu_summary[5, 3:9] %>% as.numeric(),
-         dec=rep(0, 7))
+  TexRow(portland_panel_tu_summary[5, 3:7] %>% as.numeric(),
+         dec=rep(0, 5))
 
-TexSave(tab, filename="tu_summary", positions=rep('c', 9),
+TexSave(tab, filename="tu_summary", positions=rep('c', 7),
         output_path=output_dir, stand_alone=FALSE)
 
 # % unpaid conditional on defaulting
