@@ -181,5 +181,5 @@ tab <- descriptive_stat_tex(portland_rct_subject_descriptive)
 TexSave(tab, filename="rct_subject_descriptive", positions=rep('c', 8),
         output_path=output_dir, stand_alone=FALSE)
 
-write_csv(portland_rct_subject %>% select(tu_id, discount_percentage),
+write_csv(portland_rct_subject %>% select(tu_id, discount_percentage, cycle_num),
           file=paste0(working_data_dir, "/portland_rct_subject.csv"))
