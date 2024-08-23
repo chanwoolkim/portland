@@ -1,9 +1,7 @@
 #=========================================================================#
 # Master file
 #
-# Build Datasets for Analysis using SERVUS Raw Data
-#
-# Chanwool Kim, July 26, 2024
+# Chanwool Kim, August 21, 2024
 #
 #=========================================================================#
 
@@ -48,6 +46,11 @@ source(paste0(code_dir, "/databuild/delinquency_construct.R"))
 source(paste0(code_dir, "/databuild/panel_construct.R"))
 source(paste0(code_dir, "/databuild/panel_estimation_construct.R"))
 source(paste0(code_dir, "/databuild/merge_portland_transunion.R"))
+
+#---------+---------+---------+---------+---------+---------+
+# Choose RCT Subjects
+#---------+---------+---------+---------+---------+---------+
+source(paste0(code_dir, "/rct/rct1_randomize.R"))
 
 end_time <- Sys.time()
 end_time-start_time

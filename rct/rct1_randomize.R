@@ -1,27 +1,4 @@
-#---------+---------+---------+---------+---------+---------+
-# Preliminaries
-#---------+---------+---------+---------+---------+---------+
-rm(list=ls())
-start_time <- Sys.time()
-
-if (Sys.info()[4]=="JDUBE-LT"){
-  wd = "C:/Users/jdube/Dropbox/Servus/Portland"
-} else {
-  wd <- paste0(dirname(rstudioapi::getSourceEditorContext()$path), "/../..")}
-setwd(wd)
-wd <- getwd()
-code_dir <- paste0(wd, "/code")
-data_dir <- paste0(wd, "/data/raw/servus")
-tu_data_dir <- paste0(wd, "/data/raw/TU")
-auxiliary_data_dir <- paste0(wd, "/data/auxiliary")
-working_data_dir <- paste0(wd, "/data/analysis")
-output_dir <- paste0(code_dir, "/output")
-
-
-#---------+---------+---------+---------+---------+---------+
-# Load Utilities
-#---------+---------+---------+---------+---------+---------+
-source(paste0(code_dir, "/utilities/preliminary.R"))
+# Choose RCT1 subjects
 set.seed(2024)
 
 # Load data
