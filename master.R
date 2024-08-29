@@ -15,11 +15,11 @@ start_time <- Sys.time()
 if (Sys.info()[4]=="JDUBE-LT"){
   wd = "C:/Users/jdube/Dropbox/Servus/Portland"
 } else {
-wd <- paste0(dirname(rstudioapi::getSourceEditorContext()$path), "/../..")}
+wd <- paste0(dirname(rstudioapi::getSourceEditorContext()$path), "/..")}
 setwd(wd)
 wd <- getwd()
 code_dir <- paste0(wd, "/code")
-data_dir <- paste0(wd, "/data/raw/servus")
+data_dir <- paste0(wd, "/data/raw/PWB")
 tu_data_dir <- paste0(wd, "/data/raw/TU")
 auxiliary_data_dir <- paste0(wd, "/data/auxiliary")
 working_data_dir <- paste0(wd, "/data/analysis")
