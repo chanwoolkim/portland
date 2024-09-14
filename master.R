@@ -46,6 +46,7 @@ source(paste0(code_dir, "/databuild/delinquency_construct.R"))
 source(paste0(code_dir, "/databuild/panel_construct.R"))
 source(paste0(code_dir, "/databuild/panel_estimation_construct.R"))
 source(paste0(code_dir, "/databuild/merge_portland_transunion.R"))
+source(paste0(code_dir, "/databuild/main_estimation_preparation.R"))
 
 #---------+---------+---------+---------+---------+---------+
 # Choose RCT Subjects
