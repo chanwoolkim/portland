@@ -5,6 +5,12 @@ set.seed(2024)
 load(paste0(working_data_dir, "/portland_transunion.RData"))
 load(paste0(working_data_dir, "/portland_demographics_tract.RData"))
 
+recent_delinquent <- read_xlsx(paste0(auxiliary_data_dir,
+                                      "/TU IDs for Booth Anonymized 10112024.xlsx"))
+
+exclusion_accounts <- read_xlsx(paste0(auxiliary_data_dir,
+                                      "/SDP RCT 1 Exclusions Anonymized 10112024 .xlsx"))
+
 rct_n <- 20000
 rct_discount_percentage <- seq(0, 80, 10)
 rct_discount_tier2 <- seq(50, 80, 10)
@@ -160,3 +166,37 @@ TexSave(tab, filename="rct_subject_descriptive", positions=rep('c', 8),
 
 write_csv(portland_rct_subject %>% select(tu_id, discount_percentage, cycle_num),
           file=paste0(working_data_dir, "/portland_rct_subject.csv"))
+
+
+# Choose additional subjects ####
+n_additional <- nrow(exclusion_accounts)
+
+portland_additional <- portland_panel_2024q2 %>%
+  filter(tu_id %in% recent_delinquent$TU_NUMBER,
+         !tu_id %in% portland_rct_subject$tu_id,
+         cycle_num %in% c(1:13, 48:63)) %>%
+  select(tu_id, linc_tier_type, cycle_num)
+
+portland_additional_random <- portland_panel_2024q2 %>%
+  filter(!tu_id %in% portland_additional$tu_id,
+         !tu_id %in% portland_rct_subject$tu_id,
+         !tu_id %in% exclusion_accounts$`Tu Id`,
+         cycle_num %in% c(1:13, 48:63)) %>%
+  sample_n(n_additional-nrow(portland_additional)) %>%
+  select(tu_id, linc_tier_type, cycle_num)
+
+portland_additional <- bind_rows(portland_additional, portland_additional_random)
+
+# Assign percentage
+portland_non_tier2 <- portland_additional %>%
+  filter(linc_tier_type!="Tier2" | is.na(linc_tier_type)) %>%
+  mutate(discount_percentage=sample(rct_discount_percentage, n(), replace=TRUE))
+
+portland_tier2 <- portland_additional %>%
+  filter(linc_tier_type=="Tier2") %>%
+  mutate(discount_percentage=sample(rct_discount_tier2, n(), replace=TRUE))
+
+portland_additional <- bind_rows(portland_non_tier2, portland_tier2)
+
+write_csv(portland_additional %>% select(tu_id, discount_percentage, cycle_num),
+          file=paste0(working_data_dir, "/portland_rct_additional.csv"))

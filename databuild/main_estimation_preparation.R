@@ -6,7 +6,7 @@ load(file=paste0(working_data_dir, "/portland_demographics_tract.RData"))
 # Precleaning ####
 # Remove seniors and the disabled and those missing Census or TU info
 # Also remove those on monthly payment plan whose last bill was chopped
-portland_estimation_sample <- portland_transunion %>%
+portland_panel_sample <- portland_transunion %>%
   left_join(portland_demographics_tract_wide %>% 
               mutate(tract=as.numeric(tract)),
             by="tract") %>%
@@ -18,7 +18,7 @@ portland_estimation_sample <- portland_transunion %>%
          type_code=="REGLR")
 
 # Remove those who have a gap in their billing
-portland_estimation_sample <- portland_estimation_sample %>%
+portland_panel_sample <- portland_panel_sample %>%
   group_by(tu_id) %>%
   mutate(previous_end_date=lag(end_date),
          previous_bill_date=lag(bill_date)) %>%
@@ -32,7 +32,7 @@ portland_estimation_sample <- portland_estimation_sample %>%
   ungroup()
 
 # Remove those whose bill was severely off-cycle (more than 15 days)
-portland_estimation_sample <- portland_estimation_sample %>%
+portland_panel_sample <- portland_panel_sample %>%
   mutate(bill_days=difftime(end_date, start_date, units="days") %>% as.numeric()) %>%
   group_by(tu_id) %>%
   filter(!(any(bill_days<75) | any(bill_days>105))) %>%
@@ -47,7 +47,7 @@ x <- c(
   "hispanic", "black")
 
 # Rename
-portland_estimation_sample <- portland_estimation_sample %>%
+portland_panel_sample <- portland_panel_sample %>%
   arrange(tu_id, bill_date) %>%
   select(h=tu_id,
          bill_t=bill_date,
@@ -65,7 +65,7 @@ portland_estimation_sample <- portland_estimation_sample %>%
   filter(!is.na(bill_t))
 
 # Manipulate t
-portland_estimation_sample <- portland_estimation_sample %>%
+portland_panel_sample <- portland_panel_sample %>%
   mutate(t=ifelse(year(bill_t)==2024 & month(bill_t) %in% c(3, 4, 5), -3, NA)) %>%
   group_by(h) %>%
   filter(!all(is.na(t))) %>%
@@ -74,18 +74,43 @@ portland_estimation_sample <- portland_estimation_sample %>%
   mutate(t=ifelse(t==-3 & lag_t==-3 & !is.na(lag_t), NA, t)) %>%
   select(-lag_t)
 
-while (!all(!is.na(portland_estimation_sample$t))) {
-  portland_estimation_sample <- portland_estimation_sample %>%
+while (!all(!is.na(portland_panel_sample$t))) {
+  portland_panel_sample <- portland_panel_sample %>%
     group_by(h) %>%
     mutate(t=ifelse(is.na(t), lead(t)-1, t),
            t=ifelse(is.na(t), lag(t)+1, t)) %>%
     ungroup()
 }
 
-portland_estimation_sample <- portland_estimation_sample %>%
+portland_panel_sample <- portland_panel_sample %>%
   arrange(h, t) %>%
   select(h, bill_t, t, O_t, E_t, B_t, D_t, w_t, w_lag, any_of(x))
 
+portland_cross_section_sample <- portland_panel_sample %>%
+  group_by(h) %>%
+  mutate(across(all_of(c("O_t", "E_t", "B_t", "D_t", "w_t", "w_lag")), 
+                ~lag(.),
+                .names = "prev1_{col}"),
+         across(all_of(c("O_t", "E_t", "B_t", "D_t", "w_t", "w_lag")), 
+                ~lag(., 2),
+                .names = "prev2_{col}"),
+         across(all_of(c("O_t", "E_t", "B_t", "D_t", "w_t", "w_lag")), 
+                ~lag(., 3),
+                .names = "prev3_{col}")) %>%
+  ungroup() %>%
+  filter(t %in% c(-3, -7, -11)) %>%
+  mutate(year=case_when(t==-3 ~ 0,
+                        t==-7 ~ -1,
+                        t==-11 ~ -2,
+                        .default=NA)) %>%
+  select(-t) %>%
+  group_by(h) %>%
+  filter(any(year==0)) %>%
+  ungroup()
+
 # Save the dataset
-save(portland_estimation_sample, x,
-     file=paste0(working_data_dir, "/portland_estimation_sample.RData"))
+save(portland_panel_sample, x,
+     file=paste0(working_data_dir, "/portland_panel_sample.RData"))
+
+save(portland_cross_section_sample, x,
+     file=paste0(working_data_dir, "/portland_cross_section_sample.RData"))
