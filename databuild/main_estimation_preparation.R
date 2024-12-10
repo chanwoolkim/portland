@@ -38,13 +38,23 @@ portland_panel_sample <- portland_panel_sample %>%
   filter(!(any(bill_days<75) | any(bill_days>105))) %>%
   ungroup()
 
+portland_panel_sample <- portland_panel_sample %>%
+  group_by(tu_id) %>%
+  mutate(ever_delinquent=lag(cumsum(replace_na(delinquent, 0)), 0)>0,
+         ever_payment_arrange=lag(cumsum(replace_na(payment_arrange, 0)), 0)>0,
+         ever_financial_assist=lag(cumsum(replace_na(financial_assist, 0)), 0)>0,
+         ever_cutoff=lag(cumsum(replace_na(cutoff, 0)), 0)>0) %>%
+  ungroup()
+
 x <- c(
-  #TU
+  # TU
   "credit_score", "etie", 
-  #Census
+  # Census
   "hh_size", "unemployment", "hh_income",
   "food_stamp", "hh_poverty", "hh_nocar",
-  "hispanic", "black")
+  "hispanic", "black",
+  # History
+  "ever_delinquent", "ever_payment_arrange", "ever_financial_assist", "ever_cutoff")
 
 # Rename
 portland_panel_sample <- portland_panel_sample %>%
@@ -107,6 +117,16 @@ portland_cross_section_sample <- portland_panel_sample %>%
   group_by(h) %>%
   filter(any(year==0)) %>%
   ungroup()
+
+# Round appropriately so we can work with equals
+portland_cross_section_sample <- portland_cross_section_sample %>%
+  mutate(across(all_of(c("O_t", "E_t", "B_t", "D_t")), 
+                ~round(., 2)),
+         across(contains("prev"),
+                ~round(., 2)),
+         across(all_of(c("h", "year",
+                         "w_t", "w_lag", "credit_score", "etie")), 
+                ~round(., 0)))
 
 # Save the dataset
 save(portland_panel_sample, x,

@@ -138,7 +138,7 @@ bill_info <-
                       is_canceled=IS_CANCELED,
                       is_rebill=IS_REBILL,
                       is_off_cycle=IS_OFF_CYCLE,
-                      non_bill_generaged_changes=NON_BILL_GENERAGED_CHANGES,
+                      non_bill_generated_changes=NON_BILL_GENERAGED_CHANGES,
                       total_payments=TOTAL_PAYMENTS,
                       amount=AMOUNT,
                       is_bill_corrected=IS_BILL_CORRECTED,

@@ -168,7 +168,8 @@ portland_panel <- bind_rows(portland_panel_sub, portland_panel, portland_panel_n
          collection_sent_amount=amount_due,
          collection_collected_amount=collection_amount) %>%
   select(-account) %>%
-  distinct()
+  distinct() %>%
+  mutate(current_bill=current_bill+non_bill_generated_changes)
 
 # Select payments to final bill
 portland_panel_fin <- portland_panel %>%

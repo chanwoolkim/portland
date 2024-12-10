@@ -38,7 +38,8 @@ bill_info_filtered <- bill_info %>%
 # Those who are not on a payment plan
 no_plan_bill <- bill_info_filtered %>%
   filter(is.na(source_code)) %>%
-  mutate(delinquent=previous_bill_amount+total_payments>0,
+  mutate(previous_bill_amount=previous_bill_amount+non_bill_generaged_changes,
+         delinquent=previous_bill_amount+total_payments>0,
          delinquent_amount=ifelse(previous_bill_amount+total_payments>0,
                                   previous_bill_amount+total_payments,
                                   0),
@@ -46,13 +47,15 @@ no_plan_bill <- bill_info_filtered %>%
   select(tu_id, due_date, bill_date,
          bill_year, delinquent, delinquent_amount,
          previous_bill_amount, total_payments, ar_due_before_bill, ar_due_after_bill,
+         non_bill_generaged_changes,
          source_code, type_code, is_off_cycle,
          start_date, end_date)
 
 # Those on a payment plan
 plan_bill <- bill_info_filtered %>%
   filter(!is.na(source_code)) %>%
-  mutate(delinquent=ar_due_before_bill>0,
+  mutate(previous_bill_amount=previous_bill_amount+non_bill_generaged_changes,
+         delinquent=ar_due_before_bill>0,
          delinquent_amount=ifelse(ar_due_before_bill>0,
                                   ar_due_before_bill,
                                   0),
@@ -60,6 +63,7 @@ plan_bill <- bill_info_filtered %>%
   select(tu_id, due_date, bill_date,
          bill_year, delinquent, delinquent_amount,
          previous_bill_amount, total_payments, ar_due_before_bill, ar_due_after_bill,
+         non_bill_generaged_changes,
          source_code, type_code, is_off_cycle,
          start_date, end_date)
 
@@ -122,7 +126,7 @@ payment_arrange_time_above_1 <- payment_arrange_time %>%
 
 delinquency_status_none <- delinquency_status %>%
   filter(!(tu_id %in% c(payment_arrange_time_count_above_1$tu_id,
-                                 payment_arrange_time_count_1$tu_id))) %>%
+                        payment_arrange_time_count_1$tu_id))) %>%
   mutate(payment_arrange=FALSE,
          payment_arrange_status=NA)
 
@@ -205,7 +209,7 @@ financial_assist_time_above_1 <- financial_assist_time %>%
 
 delinquency_status_none <- delinquency_status %>%
   filter(!(tu_id %in% c(financial_assist_time_count_above_1$tu_id,
-                                 financial_assist_time_count_1$tu_id))) %>%
+                        financial_assist_time_count_1$tu_id))) %>%
   mutate(financial_assist=FALSE)
 
 delinquency_status_sub <- delinquency_status %>%
@@ -293,7 +297,7 @@ cutoff_time_above_1 <- cutoff_time %>%
 
 delinquency_status_none <- delinquency_status %>%
   filter(!(tu_id %in% c(cutoff_time_count_above_1$tu_id,
-                                 cutoff_time_count_1$tu_id))) %>%
+                        cutoff_time_count_1$tu_id))) %>%
   mutate(cutoff=FALSE)
 
 delinquency_status_sub <- delinquency_status %>%
