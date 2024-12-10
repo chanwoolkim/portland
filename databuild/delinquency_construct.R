@@ -38,7 +38,7 @@ bill_info_filtered <- bill_info %>%
 # Those who are not on a payment plan
 no_plan_bill <- bill_info_filtered %>%
   filter(is.na(source_code)) %>%
-  mutate(previous_bill_amount=previous_bill_amount+non_bill_generaged_changes,
+  mutate(previous_bill_amount=previous_bill_amount+non_bill_generated_changes,
          delinquent=previous_bill_amount+total_payments>0,
          delinquent_amount=ifelse(previous_bill_amount+total_payments>0,
                                   previous_bill_amount+total_payments,
@@ -47,14 +47,14 @@ no_plan_bill <- bill_info_filtered %>%
   select(tu_id, due_date, bill_date,
          bill_year, delinquent, delinquent_amount,
          previous_bill_amount, total_payments, ar_due_before_bill, ar_due_after_bill,
-         non_bill_generaged_changes,
+         non_bill_generated_changes,
          source_code, type_code, is_off_cycle,
          start_date, end_date)
 
 # Those on a payment plan
 plan_bill <- bill_info_filtered %>%
   filter(!is.na(source_code)) %>%
-  mutate(previous_bill_amount=previous_bill_amount+non_bill_generaged_changes,
+  mutate(previous_bill_amount=previous_bill_amount+non_bill_generated_changes,
          delinquent=ar_due_before_bill>0,
          delinquent_amount=ifelse(ar_due_before_bill>0,
                                   ar_due_before_bill,
@@ -63,7 +63,7 @@ plan_bill <- bill_info_filtered %>%
   select(tu_id, due_date, bill_date,
          bill_year, delinquent, delinquent_amount,
          previous_bill_amount, total_payments, ar_due_before_bill, ar_due_after_bill,
-         non_bill_generaged_changes,
+         non_bill_generated_changes,
          source_code, type_code, is_off_cycle,
          start_date, end_date)
 
