@@ -7,8 +7,6 @@ load(file=paste0(working_data_dir, "/financial_assistance_info.RData"))
 load(file=paste0(working_data_dir, "/acs_tract.RData"))
 load(file=paste0(working_data_dir, "/portland_demographics_tract.RData"))
 
-tracts <- read_csv(file=paste0(auxiliary_data_dir, "/portland_geoid.csv"))$GEOID
-
 # Choose valid accounts
 account_info_filtered <- account_info %>%
   mutate(occupancy_code=trimws(occupancy_code)) %>%
@@ -195,7 +193,6 @@ account_info_merge <- account_info_merge %>%
 
 # ACS base map
 acs_tract_base <- acs_tract_geometry %>%
-  filter(GEOID %in% tracts) %>%
   select(GEOID, geometry)
 
 save(account_info, account_info_merge, acs_tract_base,
