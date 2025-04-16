@@ -1,17 +1,11 @@
-# Set access key
-accessKey <- "36d87abb2548485a59e01d3779c2ee90e05d96b5"
-
-# Set dataset: current American Community Survey (ACS) dataset
-baseurl <- "https://api.census.gov/data/2021/acs/acs1/profile?get=NAME,"
-
 # Census ####
-variable_list_acs_2022 <- load_variables(2022, "acs5/profile")
+variable_list_acs_2023 <- load_variables(2023, "acs5/profile")
 
 demographic_stats <- c("DP05_0001E", "DP02_0001E", "DP02_0016E", "DP03_0009PE",
                        "DP03_0062E", "DP03_0092E", "DP03_0069E", "DP03_0071E",
                        "DP03_0072PE", "DP03_0073E", "DP03_0074PE",
                        "DP03_0119PE", "DP04_0058PE",
-                       "DP05_0073PE", "DP05_0080PE", "DP05_0079PE")
+                       "DP05_0075PE", "DP05_0083PE", "DP05_0082PE")
 
 demographic_stats_name <- c("total_n", "total_hh", "hh_size", "unemployment",
                             "hh_income", "hh_earnings", "hh_retirement", "hh_ssi",
@@ -24,21 +18,19 @@ demographic_stats_name <- c("total_n", "total_hh", "hh_size", "unemployment",
 acs_tract <- get_acs(
   geography="tract",
   variables=demographic_stats,
-  key=accessKey,
   output="wide",
   state="OR",
   county=c("Multnomah", "Washington", "Clackamas"),
-  year=2022
+  year=2023
 )
 
 acs_tract_geometry <- get_acs(
   geography="tract",
   variables=demographic_stats,
-  key=accessKey,
   output="wide",
   state="OR",
   county=c("Multnomah", "Washington", "Clackamas"),
-  year=2022,
+  year=2023,
   geometry=TRUE
 )
 

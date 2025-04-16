@@ -365,3 +365,6 @@ save(account_info, address_info,
 
 save(financial_info, usage_info,
      file=gzfile(paste0(working_data_dir, "/analysis_info_large.RData.gz")))
+
+save(code_info,
+     file=paste0(working_data_dir, "/code_info.RData"))
