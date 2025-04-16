@@ -15,7 +15,7 @@ start_time <- Sys.time()
 if (Sys.info()[4]=="JDUBE-LT"){
   wd = "C:/Users/jdube/Dropbox/Servus/Portland"
 } else {
-  wd <- paste0(dirname(rstudioapi::getSourceEditorContext()$path), "/../../..")}
+  wd <- paste0(dirname(rstudioapi::getSourceEditorContext()$path), "/../..")}
 setwd(wd)
 wd <- getwd()
 code_dir <- paste0(wd, "/code")
@@ -77,11 +77,11 @@ load(file=paste0(working_data_dir, "/portland_demographics_tract.RData"))
 # Create Data for Analysis
 #---------+---------+---------+---------+---------+---------+
 dt = data.table(portland_panel)
-setkeyv(dt,c("ACCOUNT_NO","BILL_RUN_DT"))
+setkeyv(dt,c("tu_id","bill_date"))
 
 # Date variables
-dt[,year:=year(dt$BILL_RUN_DT)]
-dt[,quarter:=quarter(dt$BILL_RUN_DT)]
+dt[,year:=year(dt$bill_date)]
+dt[,quarter:=quarter(dt$bill_date)]
 dt$time = (dt$year-min(dt$year))*4 + dt$quarter
 # fix missing
 dt[,discount_assistance:=na.replace(discount_assistance)]
@@ -100,8 +100,8 @@ dt[,RevRate:=total_payments/Rev*100]
 dt[,discounts_and_vouchers:=discount_assistance+crisis_voucher_amount]
 dt[,unpaid_debt:=leftover_debt-discounts_and_vouchers+
      final_writeoff+writeoff_amount-collection_collected_amount]
-dt[,date:=paste(format(BILL_RUN_DT, "%Y"),  # Convert dates to quarterly
-                sprintf("%02i", (as.POSIXlt(BILL_RUN_DT)$mon) %/% 3L + 1L), 
+dt[,date:=paste(format(bill_date, "%Y"),  # Convert dates to quarterly
+                sprintf("%02i", (as.POSIXlt(bill_date)$mon) %/% 3L + 1L), 
                 sep = "/")]
 
 # censor unreliable outliers
@@ -289,7 +289,7 @@ dev.off()
 # FIGURE: Water Usage vs Revenue Rate in first quarter of 2019 and 2022 
 #---------+---------+---------+---------+---------+---------+
 for(tt in c(2020,2023)){
-  dd = data.frame(dt[year(dt$BILL_RUN_DT)==tt & quarter(dt$BILL_RUN_DT)==2 & is.na(dt$water_cons)==0,])
+  dd = data.frame(dt[year(dt$bill_date)==tt & quarter(dt$bill_date)==2 & is.na(dt$water_cons)==0,])
   # Winsorize data above at 99th percentile
   q99 = quantile(dd$water_cons,prob=.99)
   dd$water_cons[dd$water_cons>=q99] = q99
