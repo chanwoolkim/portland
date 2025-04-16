@@ -164,7 +164,8 @@ tab <- descriptive_stat_tex(portland_rct_subject_descriptive)
 TexSave(tab, filename="rct_subject_descriptive", positions=rep('c', 8),
         output_path=output_dir, stand_alone=FALSE)
 
-write_csv(portland_rct_subject %>% select(tu_id, discount_percentage, cycle_num),
+write_csv(portland_rct_subject %>%
+            select(tu_id, discount_percentage, cycle_num, linc_tier_type, delinquent),
           file=paste0(working_data_dir, "/portland_rct_subject.csv"))
 
 
@@ -175,7 +176,7 @@ portland_additional <- portland_panel_2024q2 %>%
   filter(tu_id %in% recent_delinquent$TU_NUMBER,
          !tu_id %in% portland_rct_subject$tu_id,
          cycle_num %in% c(1:13, 48:63)) %>%
-  select(tu_id, linc_tier_type, cycle_num)
+  select(tu_id, linc_tier_type, cycle_num, delinquent)
 
 portland_additional_random <- portland_panel_2024q2 %>%
   filter(!tu_id %in% portland_additional$tu_id,
@@ -183,7 +184,7 @@ portland_additional_random <- portland_panel_2024q2 %>%
          !tu_id %in% exclusion_accounts$`Tu Id`,
          cycle_num %in% c(1:13, 48:63)) %>%
   sample_n(n_additional-nrow(portland_additional)) %>%
-  select(tu_id, linc_tier_type, cycle_num)
+  select(tu_id, linc_tier_type, cycle_num, delinquent)
 
 portland_additional <- bind_rows(portland_additional, portland_additional_random)
 
@@ -198,5 +199,6 @@ portland_tier2 <- portland_additional %>%
 
 portland_additional <- bind_rows(portland_non_tier2, portland_tier2)
 
-write_csv(portland_additional %>% select(tu_id, discount_percentage, cycle_num),
+write_csv(portland_additional %>% 
+            select(tu_id, discount_percentage, cycle_num, linc_tier_type, delinquent),
           file=paste0(working_data_dir, "/portland_rct_additional.csv"))
