@@ -23,7 +23,7 @@ data_dir <- paste0(wd, "/data/raw/PWB")
 tu_data_dir <- paste0(wd, "/data/raw/TU")
 auxiliary_data_dir <- paste0(wd, "/data/auxiliary")
 working_data_dir <- paste0(wd, "/data/analysis")
-output_dir <- paste0(code_dir, "/output")
+output_dir <- paste0(wd, "/../../Dropbox/Apps/Overleaf/Water Pricing/output")
 
 
 #---------+---------+---------+---------+---------+---------+
