@@ -1,0 +1,85 @@
+CREATE OR REPLACE TABLE `servus-291816.portland_working.billed` AS
+WITH filtered_bills AS (
+  SELECT 
+    *,
+    ROW_NUMBER() OVER (PARTITION BY account_number, bill_date ORDER BY updated DESC) AS bill_num
+  FROM `servus-291816.portlandWater.bill`
+  WHERE is_canceled = FALSE
+    AND is_error = FALSE
+    AND is_voided = FALSE
+    AND is_corrected = FALSE
+    AND audit_or_live = 'L'
+    AND start_date IS NOT NULL
+    AND end_date IS NOT NULL
+    AND due_date IS NOT NULL
+),
+ordered_bills AS (
+  SELECT 
+    *,
+    LEAD(source_code, 1) OVER (PARTITION BY account_number ORDER BY bill_date) AS next_source_code,
+    LEAD(due_date, 1) OVER (PARTITION BY account_number ORDER BY bill_date) AS next_due_date,
+    LEAD(source_code, 2) OVER (PARTITION BY account_number ORDER BY bill_date) AS next_next_source_code,
+    LEAD(due_date, 2) OVER (PARTITION BY account_number ORDER BY bill_date) AS next_next_due_date,
+  FROM filtered_bills
+  WHERE bill_num = 1
+),
+encapsulate_amount AS (
+  SELECT
+      account_number,
+      type_code,
+      start_date,
+      end_date,
+      bill_date,
+      source_code,
+      CASE 
+        WHEN source_code = 'QB1' AND next_source_code = 'QB2' AND next_next_source_code = 'QB3' THEN next_next_due_date
+        WHEN source_code = 'QB1' AND next_source_code = 'QB2' THEN next_due_date
+        ELSE due_date
+      END AS due_date,
+      created,
+      COALESCE(previous_bill_amount, 0) AS previous_bill_amount,
+      COALESCE(ar_due_before_bill, 0) AS ar_due_before_bill,
+      COALESCE(ar_unapplied_cr_before_bill, 0) AS ar_unapplied_cr_before_bill,
+      COALESCE(ar_due_after_bill, 0) AS ar_due_after_bill,
+      COALESCE(ar_net_after_bill, 0) AS ar_net_after_bill,
+      COALESCE(non_bill_generated_changes, 0) AS non_bill_generated_changes,
+      COALESCE(total_payments, 0) AS total_payments,
+      COALESCE(amount, 0) AS amount,
+  FROM ordered_bills AS bill
+  WHERE bill.type_code = 'REGLR' OR bill.type_code = 'FINAL'
+),
+quarterly_bill AS (
+  SELECT DISTINCT
+    account_number,
+    type_code,
+    start_date,
+    end_date,
+    due_date,
+    bill_date,
+    CASE 
+      WHEN source_code = 'QB1' AND non_bill_generated_changes > 0 THEN ar_net_after_bill - ar_due_before_bill - non_bill_generated_changes - LEAST(previous_bill_amount + total_payments, 0)
+      WHEN source_code = 'QB1' THEN ar_net_after_bill - ar_due_before_bill + LEAST(previous_bill_amount + total_payments, 0)
+      ELSE amount
+    END AS amount_due,
+    created,
+    previous_bill_amount,
+    ar_due_before_bill + ar_unapplied_cr_before_bill AS previous_unpaid_amount
+  FROM encapsulate_amount
+)
+SELECT
+  quarterly_bill.account_number,
+  quarterly_bill.type_code,
+  account.cycle_code,
+  quarterly_bill.start_date,
+  quarterly_bill.end_date,
+  quarterly_bill.due_date,
+  quarterly_bill.bill_date,
+  COALESCE(LEAD(bill_date) OVER (PARTITION BY quarterly_bill.account_number ORDER BY bill_date ASC), CURRENT_DATE) AS next_bill_date,
+  quarterly_bill.created,
+  quarterly_bill.previous_bill_amount,
+  quarterly_bill.previous_unpaid_amount,
+  quarterly_bill.amount_due
+FROM quarterly_bill
+  JOIN `servus-291816.portland_working.account` account 
+  ON account.account_number = quarterly_bill.account_number
+ORDER BY account_number, bill_date;
