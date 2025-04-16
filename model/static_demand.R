@@ -137,7 +137,10 @@ Outcomes = c("w_t","E_t")
 States = c("D_t","B_t")
 
 ## Features
-HHvars = c("credit_score","etie","hh_size","unemployment","hh_income","food_stamp","hh_poverty","hh_nocar","hispanic","black",colnames(df)[grep("prev",colnames(df))])
+HHvars = c("credit_score","etie","hh_size","unemployment","hh_income","food_stamp","hh_poverty","hh_nocar","hispanic","black",colnames(df)[grep("prev",colnames(df))],colnames(df)[grep("ever_",colnames(df))])
+
+
+save(df,HHvars,Outcomes,States,file=paste(output_dir,"/estimdata.Rdata",sep=""))
 
 
 #---------+---------+---------+---------+---------+---------+
