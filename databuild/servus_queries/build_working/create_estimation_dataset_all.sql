@@ -1,4 +1,4 @@
-CREATE OR REPLACE TABLE `servus-291816.portland_working.estimation_dataset` AS
+CREATE OR REPLACE TABLE `servus-291816.portland_working.estimation_dataset_all` AS
 WITH ranked_usage AS (
   SELECT
     account_number,
@@ -39,7 +39,6 @@ usage_info AS (
     updated
   FROM ranked_usage
   WHERE row_num = 1
-    AND account_number IN (SELECT account_number FROM `servus-291816.portland_working.account_rct`)
   ORDER BY account_number DESC
 ),
 water_usage_info AS (
@@ -55,6 +54,8 @@ bill_info AS (
   SELECT
     account_number,
     bill_date,
+    EXTRACT(YEAR FROM bill_date) AS year,
+    EXTRACT(QUARTER FROM bill_date) AS quarter,
     CASE 
       WHEN EXTRACT(YEAR FROM bill_date) > 2023 THEN 2023
       ELSE EXTRACT(YEAR FROM bill_date)
@@ -79,7 +80,6 @@ bill_info AS (
     transfer,
     running_owed
   FROM `servus-291816.portland_working.billed_paid`
-  WHERE account_number IN (SELECT account_number FROM `servus-291816.portland_working.account_rct`)
 ),
 on_payment_plan AS (
   SELECT DISTINCT
@@ -107,14 +107,8 @@ payment_plan_info AS (
 ),
 account_consolidated AS (
   SELECT
-    account_rct.account_number,
-    account_rct.discount_percentage,
-    account_rct.cycle_code,
-    account_rct.linc_tier_type,
-    account_rct.delinquent,
-    account_rct.etie,
-    account_rct.credit_score,
-    account_rct.exit_reason,
+    account.account_number,
+    account.cycle_code,
     account.state_id,
     account.county_id,
     account.tract_id,
@@ -176,11 +170,9 @@ account_consolidated AS (
     census_data.percent_of_house_holds_with_cash_assistance,
     census_data.percent_of_house_holds_with_food_stamps,
     CAST(census_data.census_year AS int64) AS census_year
-  FROM `servus-291816.portland_working.account_rct` AS account_rct
-  LEFT JOIN `servus-291816.portland_working.account` AS account
-    ON account_rct.account_number = account.account_number
+  FROM `servus-291816.portland_working.account` AS account
   LEFT JOIN `servus-291816.portland_working.account_financial` AS account_financial
-    ON account_rct.account_number = account_financial.account_number
+    ON account.account_number = account_financial.account_number
   LEFT JOIN `servus-291816.census_data.census_data` AS census_data
     ON account.state_id = census_data.state_id
     AND account.county_id = census_data.county_id
@@ -215,13 +207,7 @@ SELECT DISTINCT
   COALESCE(bill_to_join.type_code, 'REGLR') AS type_code,
   water_usage_info.water_consumption,
   water_usage_info.usage_bill,
-  discount_percentage,
   cycle_code,
-  linc_tier_type,
-  delinquent,
-  etie,
-  credit_score,
-  exit_reason,
   state_id,
   county_id,
   tract_id,
@@ -231,60 +217,13 @@ SELECT DISTINCT
   service_storm,
   ufh_status,
   fa_status,
+  income,
   median_status,
   income_quartile,
   credit_quartile,
   on_payment_plan.payment_plan,
   COALESCE(payment_plan_amount, 0) AS payment_plan_amount,
-  COALESCE((bill_to_join.source_code = 'QB1'), FALSE) AS monthly_payment,
-  percent_age_under_5,
-  percent_age_5_to_9,
-  percent_age_10_to_14,
-  percent_age_15_to_19,
-  percent_age_20_to_24,
-  percent_age_25_to_34,
-  percent_age_35_to_44,
-  percent_age_45_to_54,
-  percent_age_55_to_59,
-  percent_age_60_to_64,
-  percent_age_65_to_74,
-  percent_age_75_to_84,
-  percent_age_over_85,
-  educational_attainment_no_diploma,
-  educational_attainment_diploma,
-  educational_attainment_associates_degree,
-  educational_attainment_bachelors_degree,
-  educational_attainment_post_bachelor,
-  percent_vehicles_owned_0,
-  percent_vehicles_owned_1,
-  percent_vehicles_owned_2,
-  percent_vehicles_owned_more_than_3,
-  total_house_holds,
-  average_house_hold_size,
-  median_age,
-  unemployment_rate_in_labor_force,
-  percent_of_population_with_no_health_insurance,
-  percent_of_population_includes_native_american,
-  percent_of_population_includes_hispanic,
-  percent_of_population_includes_asian,
-  percent_of_population_includes_pacific_islander,
-  percent_of_population_includes_black,
-  percent_of_population_includes_white,
-  percent_of_population_includes_other_race,
-  median_number_of_rooms,
-  housing_cost_renter,
-  housing_cost_owner,
-  percent_of_house_hold_renting,
-  percent_of_house_hold_owning,
-  median_housing_market_value,
-  median_house_hold_income,
-  percent_of_house_holds_in_poverty,
-  percent_of_house_holds_with_under_18,
-  percent_of_house_holds_with_65_plus,
-  percent_of_house_holds_with_retirement_income,
-  percent_of_house_holds_with_ssi,
-  percent_of_house_holds_with_cash_assistance,
-  percent_of_house_holds_with_food_stamps
+  COALESCE((bill_to_join.source_code = 'QB1'), FALSE) AS monthly_payment
   FROM bill_info
   LEFT JOIN water_usage_info
     ON bill_info.bill_date = water_usage_info.bill_run_date
@@ -319,6 +258,10 @@ SELECT DISTINCT
     ON bill_info.account_number = bill_to_join.account_number 
     AND bill_info.bill_date = bill_to_join.bill_date
     AND bill_to_join.bill_num = 1
+  LEFT JOIN `servus-291816.portland_working.account_income` AS account_income
+    ON bill_info.account_number = account_income.account_number
+    AND bill_info.year = account_income.year
+    AND bill_info.quarter = account_income.quarter
   LEFT JOIN (
     SELECT
       account_number,

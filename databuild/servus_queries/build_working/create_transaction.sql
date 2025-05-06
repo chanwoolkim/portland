@@ -17,9 +17,9 @@ WITH ranked_transactions AS (
     updated,
     ROW_NUMBER() OVER (PARTITION BY transaction_id ORDER BY updated DESC) AS row_num
   FROM `servus-291816.portlandWater.transaction`
-  WHERE (
-    transaction_type NOT IN ('VARCOMMIT', 'FIXCOMMIT', 'PAYCOMMIT')
-  )
+  WHERE transaction_type NOT IN ('VARCOMMIT', 'FIXCOMMIT', 'PAYCOMMIT')
+    AND transaction_type NOT LIKE '%CF%'
+    AND transaction_type NOT LIKE '%BB%'
 )
 SELECT
     transaction_id,

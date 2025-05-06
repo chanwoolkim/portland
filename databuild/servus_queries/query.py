@@ -51,6 +51,7 @@ run_bigquery(code_dir + '/build_working/create_payment_plan.sql')
 run_bigquery(code_dir + '/build_working/create_payment_plan_transaction.sql')
 run_bigquery(code_dir + '/build_working/create_payment_plan_remainder.sql')
 run_bigquery(code_dir + '/build_working/create_estimation_dataset.sql')
+run_bigquery(code_dir + '/build_working/create_estimation_dataset_all.sql')
 
 # Then run the queries to download the data ####
 # RCT info
@@ -73,9 +74,16 @@ cycle_bill_date.to_csv(output_dir + '/cycle_bill_date.csv', index=False)
 action = import_bigquery_data('SELECT * FROM `servus-291816.portland_working.action`')
 action.to_csv(output_dir + '/action.csv', index=False)
 
+# Billed
+billed_paid = import_bigquery_data('SELECT * FROM `servus-291816.portland_working.billed_paid`')
+billed_paid.to_csv(output_dir + '/billed_paid.csv', index=False)
+
 # Estimation dataset
 estimation_dataset = import_bigquery_data('SELECT * FROM `servus-291816.portland_working.estimation_dataset`')
 estimation_dataset.to_csv(output_dir + '/estimation_dataset.csv', index=False)
+
+estimation_dataset_all = import_bigquery_data('SELECT * FROM `servus-291816.portland_working.estimation_dataset_all`')
+estimation_dataset_all.to_csv(output_dir + '/estimation_dataset_all.csv', index=False)
 
 # Account counts
 sql_account = load_sql_query(code_dir + '/build_descriptive/account_count.sql')
@@ -264,3 +272,5 @@ for year in range(2019, 2026) :
         sql_newly_delinquent = sql_newly_delinquent.replace('-- OPTIONS_PLACEHOLDER', sql_option)
         newly_delinquent = import_bigquery_data(sql_newly_delinquent)
         newly_delinquent_all = pd.concat([newly_delinquent_all, newly_delinquent], ignore_index=True)
+
+newly_delinquent_all.to_csv(output_dir + '/newly_delinquent.csv', index=False)
