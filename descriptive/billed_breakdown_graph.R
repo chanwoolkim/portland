@@ -165,36 +165,36 @@ generate_revenue_graphs <- function(covid_location,
     geom_vline(xintercept=as.Date("2020-03-11"), 
                colour="darkred", linetype="dashed") +
     annotate("label", x=as.Date("2020-03-11"), y=covid_location, label="COVID",
-               colour="darkred", size=4, family="serif") +
+             colour="darkred", size=4, family="serif") +
     geom_vline(xintercept=as.Date("2022-09-13"), 
                colour="darkred", linetype="dashed") +
     annotate("label", x=as.Date("2022-09-13"), y=covid_location, label="Shutoff Reinstated", 
-               colour="darkred", size=4, family="serif") +
+             colour="darkred", size=4, family="serif") +
     # Rate Change
     geom_vline(xintercept=as.Date("2019-07-01"),
                colour="darkgray", linetype="dashed") +
     annotate("label", x=as.Date("2019-07-01"), y=rate_change_location, label="Rate Change\n(7.4%)", 
-               colour="darkgray", size=4, family="serif") +
+             colour="darkgray", size=4, family="serif") +
     geom_vline(xintercept=as.Date("2020-07-01"), 
                colour="darkgray", linetype="dashed") +
     annotate("label", x=as.Date("2020-07-01"), y=rate_change_location, label="Rate Change\n(6.5%)", 
-               colour="darkgray", size=4, family="serif") +
+             colour="darkgray", size=4, family="serif") +
     geom_vline(xintercept=as.Date("2021-07-01"), 
                colour="darkgray", linetype="dashed") +
     annotate("label", x=as.Date("2021-07-01"), y=rate_change_location, label="Rate Change\n(7.8%)", 
-               colour="darkgray", size=4, family="serif") +
+             colour="darkgray", size=4, family="serif") +
     geom_vline(xintercept=as.Date("2022-07-01"), 
                colour="darkgray", linetype="dashed") +
     annotate("label", x=as.Date("2022-07-01"), y=rate_change_location, label="Rate Change\n(7.7%)", 
-               colour="darkgray", size=4, family="serif") +
+             colour="darkgray", size=4, family="serif") +
     geom_vline(xintercept=as.Date("2023-07-01"), 
                colour="darkgray", linetype="dashed") +
     annotate("label", x=as.Date("2023-07-01"), y=rate_change_location, label="Rate Change\n(7.9%)", 
-               colour="darkgray", size=4, family="serif") +
+             colour="darkgray", size=4, family="serif") +
     geom_vline(xintercept=as.Date("2024-07-01"), 
                colour="darkgray", linetype="dashed") +
     annotate("label", x=as.Date("2024-07-01"), y=rate_change_location, label="Rate Change\n(5.9%)", 
-               colour="darkgray", size=4, family="serif") +
+             colour="darkgray", size=4, family="serif") +
     # Breakdown in 2019
     geom_label(data=transaction_aggregate_summary_plot_year[1, ],
                aes(x=as.Date("2019-10-15"), y=breakdown_location,
@@ -244,18 +244,9 @@ generate_revenue_graphs <- function(covid_location,
                                 " ($", round(payment/4, 1), "M)")),
                colour="black", size=4, lineheight=1, hjust=0.5, family="serif") +
     labs(x="Date (Year/Quarter)",
-         y="Revnue ($ millions)",
+         y="$ (millions)",
          title="Breakdown of Total Billed Amount") +
     fte_theme() +
-    theme(plot.title=element_text(size=24, hjust=0.5),
-          plot.subtitle=element_text(size=18, hjust=0.5),
-          text=element_text(size=18),
-          axis.text=element_text(size=18),
-          axis.text.x=element_text(size=18),
-          axis.text.y=element_text(size=18),
-          legend.title=element_text(size=18),
-          legend.text=element_text(size=18),
-          legend.position="bottom") +
     scale_fill_manual(values=c("Payments"=colours_set[1],
                                "Discounts"=colours_set[2],
                                "Environment Discounts"=colours_set[3],
@@ -271,7 +262,7 @@ generate_revenue_graphs <- function(covid_location,
          file=paste0(output_dir, "/figures/", filename, ".png"),
          width=12, height=8)
   
-  return(transaction_aggregate_summary)
+  return(transaction_aggregate_summary_plot)
 }
 
 code_info <- read_csv(paste0(working_data_dir, "/servus_query/code_info.csv"))
@@ -284,6 +275,38 @@ final_aggregate <- read_csv(paste0(working_data_dir, "/servus_query/final_aggreg
 all_summary <- generate_revenue_graphs(-5, 90, 12.5, real_terms=FALSE, "bill_breakdown_all")
 all_real_summary <- generate_revenue_graphs(-5, 80, 12.5, real_terms=TRUE, "bill_breakdown_real_all")
 
+# Export numbers for the slides
+for (yy in c(2019, 2024)) {
+  assign(paste0("average_payment_", yy),
+         all_real_summary %>%
+           filter(year==yy) %>%
+           summarise(average_payment=mean(payment, na.rm=TRUE)) %>%
+           pull(average_payment) %>%
+           round(1))
+  
+  export_tex(get(paste0("average_payment_", yy)), 
+             paste0("average_real_payment_", yy))
+  
+  assign(paste0("average_unpaid_", yy),
+         all_real_summary %>%
+           filter(year==yy) %>%
+           summarise(average_unpaid=mean(delayed+
+                                           leftover_debt+
+                                           discount+cleanriver_discount+
+                                           final_discount, na.rm=TRUE)) %>%
+           pull(average_unpaid) %>%
+           round(1))
+  
+  export_tex(get(paste0("average_unpaid_", yy)), 
+             paste0("average_real_unpaid_", yy))
+}
+
+real_payment_change <- round((average_payment_2024/average_payment_2019-1)*100, 1)
+export_tex(paste0(real_payment_change, "\\%"), "real_payment_change_2019_2024")
+
+real_unpaid_change <- round(average_unpaid_2024/average_unpaid_2019-1, 1)*100
+export_tex(paste0(real_unpaid_change, "\\%"), "real_unpaid_change_2019_2024")
+
 account_count <- read_csv(paste0(working_data_dir, "/servus_query/smart_discount/account_count.csv"))
 transaction_aggregate <- read_csv(paste0(working_data_dir, "/servus_query/smart_discount/transaction_aggregate.csv"))
 payment_plan_aggregate <- read_csv(paste0(working_data_dir, "/servus_query/smart_discount/payment_plan_aggregate.csv"))
@@ -291,22 +314,3 @@ collection_aggregate <- read_csv(paste0(working_data_dir, "/servus_query/smart_d
 final_aggregate <- read_csv(paste0(working_data_dir, "/servus_query/smart_discount/final_aggregate.csv"))
 
 sdp_summary <- generate_revenue_graphs(-1.5, 15, 2.15, real_terms=FALSE, "bill_breakdown_sdp")
-
-for (type in c("credit_quartile", "income_quartile")) {
-  for (quartile in c(paste0("_", 1:4))) {
-    account_count <- read_csv(paste0(working_data_dir, "/servus_query/", 
-                                     type, "/account_count", quartile, ".csv"))
-    transaction_aggregate <- read_csv(paste0(working_data_dir, "/servus_query/", 
-                                             type, "/transaction_aggregate", quartile, ".csv"))
-    payment_plan_aggregate <- read_csv(paste0(working_data_dir, "/servus_query/", 
-                                              type, "/payment_plan_aggregate", quartile, ".csv"))
-    collection_aggregate <- read_csv(paste0(working_data_dir, "/servus_query/", 
-                                            type, "/collection_aggregate", quartile, ".csv"))
-    final_aggregate <- read_csv(paste0(working_data_dir, "/servus_query/", 
-                                       type, "/final_aggregate", quartile, ".csv"))
-    
-    filename <- paste0("bill_breakdown_", type, quartile)
-    assign(paste0(type, quartile, "_summary"),
-           generate_revenue_graphs(-1.5, 27.5, 3.75, real_terms=FALSE, filename))
-  }
-}

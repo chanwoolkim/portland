@@ -15,7 +15,7 @@ start_time <- Sys.time()
 if (Sys.info()[4]=="JDUBE-LT"){
   wd = "C:/Users/jdube/Dropbox/Servus/Portland"
 } else {
-wd <- paste0(dirname(rstudioapi::getSourceEditorContext()$path), "/..")}
+  wd <- paste0(dirname(rstudioapi::getSourceEditorContext()$path), "/..")}
 setwd(wd)
 wd <- getwd()
 code_dir <- paste0(wd, "/code")
@@ -52,6 +52,22 @@ source(paste0(code_dir, "/databuild/main_estimation_preparation.R"))
 # Choose RCT Subjects
 #---------+---------+---------+---------+---------+---------+
 source(paste0(code_dir, "/rct/rct1_randomize.R"))
+
+#---------+---------+---------+---------+---------+---------+
+# Descriptive Statistics
+#---------+---------+---------+---------+---------+---------+
+source(paste0(code_dir, "/descriptive/descriptive_statistics.R"))
+source(paste0(code_dir, "/descriptive/billed_breakdown_graph.R"))
+source(paste0(code_dir, "/descriptive/billed_breakdown_table_financial.R"))
+source(paste0(code_dir, "/descriptive/billed_breakdown_table_quartile.R"))
+
+#---------+---------+---------+---------+---------+---------+
+# RCT Analysis
+#---------+---------+---------+---------+---------+---------+
+source(paste0(code_dir, "/rct/discount_effect.R"))
+source(paste0(code_dir, "/rct/threshold_effect.R"))
+source(paste0(code_dir, "/rct/threshold_treatment_effect.R"))
+source(paste0(code_dir, "/rct/survival_analysis.R"))
 
 end_time <- Sys.time()
 end_time-start_time

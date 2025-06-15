@@ -13,12 +13,12 @@ exclusion_accounts_late <-
 
 exclusion_accounts <- bind_rows(exclusion_accounts_early %>%
                                   transmute(tu_id=`Tu Id`,
-                                         cycle=NA,
-                                         reason=`Exclusion Reason`), 
+                                            cycle=NA,
+                                            reason=`Exclusion Reason`), 
                                 exclusion_accounts_late %>%
                                   transmute(tu_id=`TU Number`,
-                                         cycle=Cycle,
-                                         reason=`Reason`))
+                                            cycle=Cycle,
+                                            reason=`Reason`))
 
 rct_exclusion <- financial_info %>%
   filter(tu_id %in% exclusion_accounts$`Tu Id`) %>%
@@ -40,6 +40,9 @@ rct_info <- financial_info %>%
 
 write_csv(rct_info, 
           paste0(auxiliary_data_dir, "/rct_info.csv"))
+
+tu_data <- tu_data %>%
+  mutate(credit_score=ifelse(credit_score<300, NA, credit_score))
 
 tu_income <- tu_data %>%
   mutate(year=year(credit_date),
@@ -86,14 +89,8 @@ tu_data <- tu_data %>%
   summarise(etie=mean(etie, na.rm=TRUE), 
             credit_score=mean(credit_score, na.rm=TRUE)) %>%
   ungroup() %>% 
-  mutate(income_quartile=findInterval(etie,
-                                      quantile(etie, 
-                                               probs=seq(0, 0.99, 0.25), 
-                                               na.rm=TRUE)),
-         credit_quartile=findInterval(credit_score,
-                                      quantile(credit_score, 
-                                               probs=seq(0, 0.99, 0.25), 
-                                               na.rm=TRUE)))
+  mutate(income_quartile=ntile(etie, 4),
+         credit_quartile=ntile(credit_score, 4))
 
 financial_quartile <- financial_info %>%
   select(tu_id, transaction_number) %>%

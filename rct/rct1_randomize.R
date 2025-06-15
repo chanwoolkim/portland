@@ -9,7 +9,7 @@ recent_delinquent <- read_xlsx(paste0(auxiliary_data_dir,
                                       "/TU IDs for Booth Anonymized 10112024.xlsx"))
 
 exclusion_accounts <- read_xlsx(paste0(auxiliary_data_dir,
-                                      "/SDP RCT 1 Exclusions Anonymized 10112024 .xlsx"))
+                                       "/SDP RCT 1 Exclusions Anonymized 10112024 .xlsx"))
 
 rct_n <- 20000
 rct_discount_percentage <- seq(0, 80, 10)
@@ -24,10 +24,27 @@ portland_panel_2024q2 <- portland_transunion %>%
 
 portland_panel_2024q2 %>% summarise(n=n_distinct(tu_id)) #146,063
 
+portland_tu_id_count <- portland_panel_2024q2 %>% 
+  summarise(n=n_distinct(tu_id)) %>%
+  ungroup() %>%
+  pull(n)
+
+export_tex(prettyNum(portland_tu_id_count, big.mark=",", scientific=FALSE),
+           "portland_tu_id_count")
+
 portland_panel_2024q2 <- portland_panel_2024q2 %>%
   filter(!senior_disabilities)
 
 portland_panel_2024q2 %>% summarise(n=n_distinct(tu_id)) #143,923
+
+portland_exclude_honored_count <- portland_panel_2024q2 %>% 
+  summarise(n=n_distinct(tu_id)) %>%
+  ungroup() %>%
+  pull(n)
+
+portland_exclude_honored_share <- round(portland_exclude_honored_count/portland_tu_id_count*100, 1)
+export_tex(paste0("(", portland_exclude_honored_share, "\\%)"),
+           "portland_exclude_honored_count")
 
 portland_panel_2024q2 <- portland_panel_2024q2 %>%
   filter(!is.na(credit_score), !is.na(etie)) %>%
@@ -40,6 +57,12 @@ portland_delinquent <- portland_panel_2024q2 %>%
   select(tu_id)
 
 rct_delinquent_n <- portland_delinquent %>% count() %>% as.numeric() #7,674
+export_tex(prettyNum(rct_delinquent_n, big.mark=",", scientific=FALSE),
+           "portland_rct_delinquent")
+
+rct_delinquent_rev_n <- 20000-rct_delinquent_n
+export_tex(prettyNum(rct_delinquent_rev_n, big.mark=",", scientific=FALSE),
+           "portland_rct_delinquent_rev")
 
 portland_panel_2024q2 %>% summarise(n=sum(!delinquent, na.rm=TRUE)) #123,902
 

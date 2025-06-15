@@ -65,7 +65,6 @@ gg <- ggplot(tu_summary,
              aes(x=idws, y=value, colour=factor(year))) +
   geom_point(size=3) +
   geom_line() +
-  fte_theme() +    
   labs(x="Percent of income (%)",
        y="Percent of households paying more (%)") +
   scale_x_continuous(breaks=seq(0, 0.1, 0.01),
@@ -74,15 +73,6 @@ gg <- ggplot(tu_summary,
   scale_y_continuous(breaks=seq(0, 1, 0.1),
                      label=scales::percent) +
   fte_theme() +
-  theme(plot.title=element_text(size=24, hjust=0.5),
-        plot.subtitle=element_text(size=18, hjust=0.5),
-        text=element_text(size=18),
-        axis.text=element_text(size=18),
-        axis.text.x=element_text(size=18),
-        axis.text.y=element_text(size=18),
-        legend.title=element_text(size=18),
-        legend.text=element_text(size=18),
-        legend.position="bottom") +
   scale_colour_manual(values=colours_set,
                       name="Year") +
   guides(colour=guide_legend(nrow=1)) +

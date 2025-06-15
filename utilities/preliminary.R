@@ -2,7 +2,6 @@
 
 # Linux box cannot install these packages
 if (Sys.info()[4]!="jdube01"){
-  library(acs)
   library(Hmisc)
   library(tidycensus)
   library(tidygeocoder)
@@ -28,6 +27,7 @@ library(scales)
 library(stringr)
 library(textab)
 library(tidyr)
+library(vtable)
 library(zip)
 library(zoo)
 
@@ -37,6 +37,8 @@ colours_set <- c("#77AADD", "#99DDFF", "#44BB99", "#BBCC33",
 colours_set_sequential <- c("#72190E", "#DC050C", "#EE8026", "#F7CB45", 
                             "#CAE0AB", "#4EB265", "#6195CF", "#1965B0", 
                             "#994F88", "#BA8DB4", "#D9CCE3")
+
+colours_set_contrast <- c("#004488", "#DDAA33", "#BB5566")
 
 fte_theme <- function() {
   # Generate the colours for the chart procedurally with RColorBrewer
@@ -49,33 +51,37 @@ fte_theme <- function() {
   color.title=palette[9]
   
   # Begin construction of chart
-  theme_bw(base_size=8, base_family="serif") +
+  theme_bw(base_size=18, base_family="serif") +
     
     # Set the entire chart region to a light gray colour
-    theme(panel.background=element_rect(fill=color.background, color=color.background)) +
-    theme(plot.background=element_rect(fill=color.background, color=color.background)) +
-    theme(panel.border=element_rect(color=color.background)) +
+    theme(panel.background=element_rect(fill=color.background, color=color.background),
+          plot.background=element_rect(fill=color.background, color=color.background), 
+          panel.border=element_rect(color=color.background)) +
     
     # Format the grid
-    theme(panel.grid.major=element_line(color=color.grid.major, size=.25)) +
-    theme(panel.grid.minor=element_line(color=color.grid.minor, size=.25)) +
-    theme(axis.ticks=element_blank()) +
+    theme(panel.grid.major=element_line(color=color.grid.major, size=.25),
+          panel.grid.minor=element_line(color=color.grid.minor, size=.25),
+          axis.ticks=element_blank()) +
     
     # Format the legend
-    theme(legend.position="bottom") +
-    theme(legend.background=element_rect(fill=color.background)) +
-    theme(legend.title=element_text(size=9, color=color.axis.title, family="serif")) +
-    theme(legend.text=element_text(size=8, color=color.axis.title, family="serif")) +
-    theme(legend.box.background=element_rect(colour=color.grid.major)) +
-    theme(legend.title.align=0.5) +
+    theme(legend.position="bottom",
+          legend.background=element_rect(fill=color.background),
+          legend.title=element_text(size=20, color=color.axis.title, family="serif"),
+          legend.text=element_text(size=18, color=color.axis.title, family="serif"),
+          legend.box.background=element_rect(colour=color.grid.major),
+          legend.title.align=0.5) +
     
     # Set title and axis labels, and format these and tick marks
-    theme(axis.text=element_text(size=rel(1), color=color.axis.text)) +
-    theme(axis.title.x=element_text(color=color.axis.title, vjust=0)) +
-    theme(axis.title.y=element_text(color=color.axis.title, vjust=1.25)) +
+    theme(axis.text=element_text(size=rel(1), color=color.axis.text),
+          axis.title.x=element_text(color=color.axis.title, vjust=0),
+          axis.title.y=element_text(color=color.axis.title, vjust=1.25)) +
     
     # Plot margins
-    theme(plot.margin=unit(c(0.35, 0.2, 0.3, 0.35), "cm"))
+    theme(plot.margin=unit(c(0.35, 0.2, 0.3, 0.35), "cm")) +
+    
+    # Plot title
+    theme(plot.title=element_text(size=24, hjust=0.5),
+          plot.subtitle=element_text(size=18, hjust=0.5))
 }
 
 pie_theme <- function() {
@@ -170,6 +176,26 @@ fix_0 <- function(tab) {
   return(tab)
 }
 
+# Export .tex file of a number
+export_tex <- function(text, out_file) {
+  sink(paste0(output_dir, "/numbers_in_doc/", out_file, ".tex"))
+  cat(text)
+  sink()
+}
+
+# Binomial confidence interval
+binom_ci <- function(p, n) {
+  if (p==0) {
+    return(c(0, 0))
+  } else if (p==1) {
+    return(c(1, 1))
+  } else {
+    binomial_test <- prop.test(p*n, n)
+    ci <- binomial_test$conf.int
+    return(c(ci[1], ci[2]))
+  }
+}
+
 # Binscatter function
 binscatter <- function(df, y, x, z=NULL, 
                        group=NULL, n.cut=20, cluster=NULL, threshold=0) {
@@ -213,7 +239,7 @@ binscatter <- function(df, y, x, z=NULL,
   
   # Build quantile breaks around threshold
   xR <- df$xRes
-  neg_idx <- xR<threshold
+  neg_idx <- xR < threshold
   pos_idx <- xR >= threshold
   
   q_neg <- quantile(xR[neg_idx], probs=seq(0, 1, length.out=n.cut+1),
@@ -231,10 +257,10 @@ binscatter <- function(df, y, x, z=NULL,
               y_sd=sd(yRes, na.rm=TRUE),
               n=n(), .groups="drop") %>%
     ungroup() %>%
-    mutate(y_se=y/sqrt(n),
+    mutate(y_se=y_sd/sqrt(n),
            y_lower=y-1.96*y_se,
            y_upper=y+1.96*y_se) %>%
-    select(-y_sd, -n)
+    select(-y_sd)
   
   return(list(df_bin=df_bin,
               in_model=lm_fit,
@@ -394,4 +420,60 @@ gg_bin <- function(df, dvs, x="x", bw=bw_preferred, n_cut=n_cut,
   
   # 8) Return the ggplot object
   invisible(p)
+}
+
+# Select the optimal number of bins
+bin_select <- function(df, y, x, bw, n_initial=10, threshold=0) {
+  df <- df %>%
+    filter(bill>threshold-bw, bill<threshold+bw) %>%
+    mutate(xRes=.data[[x]],
+           yRes=.data[[y]])
+  
+  n <- nrow(df)
+  xR <- df$xRes
+  neg_idx <- xR < threshold
+  pos_idx <- xR >= threshold
+  
+  result <- data.frame()
+  
+  for (n.cut in 2:n_initial) {
+    for (m in 1:2) {
+      q_neg <- quantile(xR[neg_idx], probs=seq(0, 1, length.out=n.cut*m+1),
+                        na.rm=TRUE)
+      q_pos <- quantile(xR[pos_idx], probs=seq(0, 1, length.out=n.cut*m+1),
+                        na.rm=TRUE)[-1]
+      breaks <- unique(c(q_neg, q_pos))
+      
+      # Bin and average
+      df_bin <- df %>%
+        mutate(cut=cut(xRes, breaks=breaks, include.lowest=TRUE, labels=FALSE))
+      
+      assign(paste0("model_", m), lm(yRes~factor(cut), data=df_bin))
+      assign(paste0("rsq_", m), summary(get(paste0("model_", m)))$r.squared)
+    }
+    
+    f_stat <- ((rsq_2-rsq_1)/(n.cut*2))/((1-rsq_2)/(n-n.cut*2-1))
+    p_val <- pf(f_stat, n.cut, n-n.cut-1, lower.tail=FALSE)
+    
+    result <- rbind(result, 
+                    data.frame(n.cut=n.cut, f_stat=f_stat, p_val=p_val))
+  }
+  
+  print(result)
+  optimal_n <- result %>%
+    filter(p_val<0.1)
+  
+  if (nrow(optimal_n)==0) {
+    optimal_n <- result %>%
+      filter(p_val==min(p_val, na.rm=TRUE)) %>%
+      pull(n.cut)
+    
+    optimal_n <- ifelse(length(optimal_n)==0, 2, optimal_n)
+  } else {
+    optimal_n <- optimal_n %>%
+      slice(1) %>%
+      pull(n.cut)
+  }
+  
+  return(optimal_n)
 }

@@ -31,7 +31,7 @@ SELECT
       WHEN transaction_code IN ('B2', 'B3', 'BILLB', 'BILLV') THEN 'bill'
       WHEN transaction_code = 'BNKRP' THEN 'writeoff'
       WHEN transaction_code = 'CONV' THEN 'bill'
-      WHEN summary = 'DONAT' THEN 'payment'
+      WHEN summary = 'DONAT' THEN 'bill'
       WHEN transaction_code = 'DSCNT' AND transaction_type LIKE '%RVR%' THEN 'cleanriver_discount'
       WHEN transaction_code = 'DSCNT' AND transaction_type LIKE '%SDP%' THEN 'rct_discount'
       WHEN transaction_code = 'DSCNT' AND transaction_type LIKE '%LINC%' THEN 'linc_discount'

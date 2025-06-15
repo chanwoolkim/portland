@@ -69,27 +69,18 @@ gg <- ggplot(hazard_payment_summary,
   labs(title="Hazard Rate of Paying Off Q1 2023 Bill",
        x="Weeks Unpaid After Due Date",
        y="Cumulative Proportion of Accounts") +
-  fte_theme() +
   scale_x_continuous(breaks=seq(0, 90, 5),
                      minor_breaks=seq(0, 90, 1)) +
   scale_y_continuous(limits=c(0, 1),
                      breaks=seq(0, 1, 0.1)) +
-  theme(plot.title=element_text(size=24, hjust=0.5),
-        plot.subtitle=element_text(size=18, hjust=0.5),
-        text=element_text(size=18),
-        axis.text=element_text(size=18),
-        axis.text.x=element_text(size=18),
-        axis.text.y=element_text(size=18),
-        legend.title=element_text(size=18),
-        legend.text=element_text(size=18),
-        legend.position="bottom") +
+  fte_theme() +
   geom_vline(xintercept=10.5, 
              colour="darkred") +
-  annotate("label", x=6, y=0.9, label="Next Bill Issued",
+  annotate("label", x=6, y=0.1, label="Next Bill Issued",
              colour="darkred", size=5, family="serif") +
   geom_vline(xintercept=13.5, 
              colour="darkred") +
-  annotate("label", x=17, y=0.8, label="Next Bill Due",
+  annotate("label", x=17, y=0.2, label="Next Bill Due",
              colour="darkred", size=5, family="serif") +
   geom_vline(xintercept=26.5, 
              colour="darkred") +
@@ -171,47 +162,38 @@ gg <- ggplot(hazard_delinquency_summary,
   labs(title="Hazard Rate of Exiting Delinquency Status",
        x="Weeks Unpaid After Due Date",
        y="Cumulative Proportion of Accounts") +
-  fte_theme() +
   scale_x_continuous(breaks=seq(0, 90, 5),
                      minor_breaks=seq(0, 90, 1)) +
   scale_y_continuous(limits=c(0, 0.8),
                      breaks=seq(0, 0.8, 0.1)) +
-  theme(plot.title=element_text(size=24, hjust=0.5),
-        plot.subtitle=element_text(size=18, hjust=0.5),
-        text=element_text(size=18),
-        axis.text=element_text(size=18),
-        axis.text.x=element_text(size=18),
-        axis.text.y=element_text(size=18),
-        legend.title=element_text(size=18),
-        legend.text=element_text(size=18),
-        legend.position="bottom") +
+  fte_theme() +
   geom_vline(xintercept=10.5, 
              colour="darkred") +
-  annotate("label", x=6, y=0.8, label="Next Bill Issued",
+  annotate("label", x=6, y=0.1, label="Next Bill Issued",
              colour="darkred", size=5, family="serif") +
   geom_vline(xintercept=13.5, 
              colour="darkred") +
-  annotate("label", x=17, y=0.7, label="Next Bill Due",
+  annotate("label", x=17, y=0.2, label="Next Bill Due",
              colour="darkred", size=5, family="serif") +
   geom_vline(xintercept=26.5, 
              colour="darkred") +
-  annotate("label", x=26.5, y=0.2, label="Next Bill Due",
+  annotate("label", x=26.5, y=0.3, label="Next Bill Due",
              colour="darkred", size=5, family="serif") +
   geom_vline(xintercept=39.5, 
              colour="darkred") +
-  annotate("label", x=39.5, y=0.2, label="Next Bill Due",
+  annotate("label", x=39.5, y=0.3, label="Next Bill Due",
              colour="darkred", size=5, family="serif") +
   geom_vline(xintercept=52.5, 
              colour="darkred") +
-  annotate("label", x=52.5, y=0.2, label="Next Bill Due",
+  annotate("label", x=52.5, y=0.3, label="Next Bill Due",
              colour="darkred", size=5, family="serif") +
   geom_vline(xintercept=65.5, 
              colour="darkred") +
-  annotate("label", x=65.5, y=0.2, label="Next Bill Due",
+  annotate("label", x=65.5, y=0.3, label="Next Bill Due",
              colour="darkred", size=5, family="serif") +
   geom_vline(xintercept=78.5, 
              colour="darkred") +
-  annotate("label", x=78.5, y=0.2, label="Next Bill Due",
+  annotate("label", x=78.5, y=0.3, label="Next Bill Due",
              colour="darkred", size=5, family="serif")
 gg
 ggsave(gg,
@@ -359,7 +341,6 @@ hazard_payment_summary$unpaid_amount[1] <-
   hazard_payment_summary$initial_amount[1]+
   hazard_payment_summary$fees[1]+
   hazard_payment_summary$discount[1]-
-  hazard_payment_summary$liens[1]+
   hazard_payment_summary$payment[1]+
   hazard_payment_summary$payment_plan[1]+
   hazard_payment_summary$adjustment[1]+
@@ -370,7 +351,6 @@ for (i in 2:nrow(hazard_payment_summary)) {
     hazard_payment_summary$unpaid_amount[i-1] +
     hazard_payment_summary$fees[i]+
     hazard_payment_summary$discount[i]-
-    hazard_payment_summary$liens[i]+
     hazard_payment_summary$payment[i]+
     hazard_payment_summary$payment_plan[i]+
     hazard_payment_summary$adjustment[i]+
@@ -381,18 +361,18 @@ hazard_payment_summary <- hazard_payment_summary %>%
   left_join(discount_rate, by=c("year", "quarter")) %>%
   mutate_at(c("payment", "payment_plan", 
               "adjustment", "fees", "discount", 
-              "writeoff", "liens", "unpaid_amount"), 
+              "writeoff", "unpaid_amount"), 
             ~./discount_rate)
 
 hazard_payment_summary <- hazard_payment_summary %>%
   mutate_at(c("payment", "payment_plan", 
               "adjustment", "fees", "discount", 
-              "writeoff", "liens"), 
+              "writeoff"), 
             ~cumsum(.))
 
 hazard_payment_summary <- hazard_payment_summary %>%
   mutate(total_amount=initial_amount+fees,
-         loss_discount=total_amount+discount-liens+payment+payment_plan+
+         loss_discount=total_amount+discount+payment+payment_plan+
            adjustment+writeoff-unpaid_amount,
          unpaid_amount=unpaid_amount-fees,
          payment=-payment/1000,
@@ -401,7 +381,6 @@ hazard_payment_summary <- hazard_payment_summary %>%
          fees=fees/1000,
          discount=-discount/1000,
          writeoff=-writeoff/1000,
-         liens=liens/1000,
          unpaid_amount=unpaid_amount/1000,
          loss_discount=loss_discount/1000,
          initial_amount=initial_amount/1000,
@@ -409,7 +388,7 @@ hazard_payment_summary <- hazard_payment_summary %>%
          accum_payment_plan=payment+payment_plan,
          accum_adjustment=accum_payment_plan+adjustment,
          accum_discount=accum_adjustment+discount,
-         accum_writeoff=accum_discount+writeoff+liens,
+         accum_writeoff=accum_discount+writeoff,
          accum_unpaid_amount=accum_writeoff+unpaid_amount,
          accum_fees=accum_unpaid_amount+fees,
          accum_loss_discount=accum_fees+loss_discount,
@@ -448,15 +427,6 @@ gg <- ggplot(data=hazard_payment_summary,
        y="Revnue ($ thousands)",
        title="Breakdown of Bill Collection for 2023Q1 Delinquents") +
   fte_theme() +
-  theme(plot.title=element_text(size=24, hjust=0.5),
-        plot.subtitle=element_text(size=18, hjust=0.5),
-        text=element_text(size=18),
-        axis.text=element_text(size=18),
-        axis.text.x=element_text(size=18),
-        axis.text.y=element_text(size=18),
-        legend.title=element_text(size=18),
-        legend.text=element_text(size=18),
-        legend.position="bottom") +
   scale_fill_manual(values=c("Payments"=colours_set[1],
                              "Payments Under Payment Plan"=colours_set[2],
                              "Adjustments"=colours_set[3],
@@ -497,15 +467,6 @@ gg <- ggplot(hazard_accounts,
        x="Income ($ thousands)",
        y="Density") +
   fte_theme() +
-  theme(plot.title=element_text(size=24, hjust=0.5),
-        plot.subtitle=element_text(size=18, hjust=0.5),
-        text=element_text(size=18),
-        axis.text=element_text(size=18),
-        axis.text.x=element_text(size=18),
-        axis.text.y=element_text(size=18),
-        legend.title=element_text(size=18),
-        legend.text=element_text(size=18),
-        legend.position="bottom") +
   scale_fill_manual(values=c("FALSE"=colours_set[2],
                              "TRUE"=colours_set[1]),
                     breaks=c("TRUE", "FALSE"),
@@ -523,15 +484,6 @@ gg <- ggplot(hazard_accounts,
        x="Credit Score",
        y="Density") +
   fte_theme() +
-  theme(plot.title=element_text(size=24, hjust=0.5),
-        plot.subtitle=element_text(size=18, hjust=0.5),
-        text=element_text(size=18),
-        axis.text=element_text(size=18),
-        axis.text.x=element_text(size=18),
-        axis.text.y=element_text(size=18),
-        legend.title=element_text(size=18),
-        legend.text=element_text(size=18),
-        legend.position="bottom") +
   scale_fill_manual(values=c("FALSE"=colours_set[2],
                              "TRUE"=colours_set[1]),
                     breaks=c("TRUE", "FALSE"),
@@ -562,15 +514,6 @@ gg <- ggplot(hazard_accounts,
        x="Income ($ thousands)",
        y="Density") +
   fte_theme() +
-  theme(plot.title=element_text(size=24, hjust=0.5),
-        plot.subtitle=element_text(size=18, hjust=0.5),
-        text=element_text(size=18),
-        axis.text=element_text(size=18),
-        axis.text.x=element_text(size=18),
-        axis.text.y=element_text(size=18),
-        legend.title=element_text(size=18),
-        legend.text=element_text(size=18),
-        legend.position="bottom") +
   scale_fill_manual(values=c("FALSE"=colours_set[2],
                              "TRUE"=colours_set[1]),
                     breaks=c("TRUE", "FALSE"),
@@ -588,15 +531,6 @@ gg <- ggplot(hazard_accounts,
        x="Credit Score",
        y="Density") +
   fte_theme() +
-  theme(plot.title=element_text(size=24, hjust=0.5),
-        plot.subtitle=element_text(size=18, hjust=0.5),
-        text=element_text(size=18),
-        axis.text=element_text(size=18),
-        axis.text.x=element_text(size=18),
-        axis.text.y=element_text(size=18),
-        legend.title=element_text(size=18),
-        legend.text=element_text(size=18),
-        legend.position="bottom") +
   scale_fill_manual(values=c("FALSE"=colours_set[2],
                              "TRUE"=colours_set[1]),
                     breaks=c("TRUE", "FALSE"),

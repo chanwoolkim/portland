@@ -20,7 +20,8 @@ fix_sequence <- function(x) {
 }
 
 cycle_bill_date <- cycle_bill_date %>%
-  mutate(t=if_else(bill_date>="2024/12/12" & bill_date<="2025/03/14", 0, NA)) %>%
+  mutate(cycle_code=as.numeric(cycle_code),
+         t=if_else(bill_date>="2024/12/12" & bill_date<="2025/03/14", 0, NA)) %>%
   arrange(cycle_code, bill_date) %>%
   group_by(cycle_code) %>%
   mutate(t=if_else(is.na(t), row_number()-which(t==0), t)) %>%
@@ -28,14 +29,16 @@ cycle_bill_date <- cycle_bill_date %>%
 
 # Add in supposed t==1
 cycle_bill_date <- bind_rows(cycle_bill_date %>% 
-                               filter(t==0, cycle_code>45) %>%
+                               filter(t==0, cycle_code>4, cycle_code<14) %>%
                                mutate(bill_date=bill_date+days(90), 
                                       t=1),
                              cycle_bill_date)
 
 estimation_dataset <- estimation_dataset %>%
-  mutate_at(c("previous_bill_amount",
+  mutate_at(c("cycle_code",
+              "previous_bill_amount",
               "previous_unpaid_amount",
+              "current_amount",
               "amount_billed",
               "amount_trans_billed",
               "fees",
@@ -88,6 +91,31 @@ estimation_dataset <- bind_rows(estimation_dataset %>%
                                 estimation_dataset %>%
                                   filter(first_bill | type_code=="FINAL" | is_rebill))
 
+estimation_dataset <- bind_rows(estimation_dataset %>%
+                                  filter(!first_bill, type_code!="FINAL", !is_rebill) %>%
+                                  group_by(account_number) %>%
+                                  mutate(got_discount=sum(rct_discount<0, na.rm=TRUE)) %>%
+                                  filter(got_discount==1) %>%
+                                  ungroup() %>%
+                                  mutate(t=ifelse(rct_discount<0, 0, NA)) %>%
+                                  arrange(account_number, bill_date.x) %>%
+                                  group_by(account_number) %>%
+                                  mutate(anchor_row=which(t==0),
+                                         t=row_number()-anchor_row) %>%
+                                  ungroup(),
+                                estimation_dataset %>%
+                                  filter(!first_bill, type_code!="FINAL", !is_rebill) %>%
+                                  group_by(account_number) %>%
+                                  mutate(got_discount=sum(rct_discount<0, na.rm=TRUE)) %>%
+                                  filter(got_discount!=1) %>%
+                                  ungroup(),
+                                estimation_dataset %>%
+                                  filter(first_bill | type_code=="FINAL" | is_rebill)) %>%
+  select(-date_diff, -n, -got_discount, -anchor_row)
+
+estimation_dataset <- estimation_dataset %>%
+  distinct()
+
 estimation_dataset <- estimation_dataset %>%
   arrange(account_number, start_date) %>%
   group_by(account_number) %>%
@@ -97,17 +125,19 @@ estimation_dataset <- estimation_dataset %>%
   ungroup()
 
 estimation_dataset <- estimation_dataset %>%
+  group_by(account_number) %>%
+  mutate(exist_t1=any(t==1)) %>%
+  ungroup()
+
+estimation_dataset <- estimation_dataset %>%
   transmute(id=account_number,
             bill_date=bill_date.x,
             due_date,
             t,
-            B_t=ifelse(t==0, amount_billed,
-                       amount_trans_billed+
-                         cleanriver_discount+rct_discount+linc_discount+discount+
-                         liens+writeoff+refund+transfer),
+            B_t=current_amount,
             D_t=D_t,
             F_t=fees,
-            O_t=B_t+D_t,
+            O_t=amount_billed,
             E_t=amount_paid,
             lag_w_t=water_consumption,
             discount_grid=discount_percentage,
@@ -116,13 +146,12 @@ estimation_dataset <- estimation_dataset %>%
             has_environment_discount=cleanriver_discount<0,
             shutoff_date=cutoff_date,
             reconnect_date,
-            income=etie,
             credit_score=credit_score,
             account_status=type_code,
             ufh=ufh_status,
             fa_eligible=fa_status,
             below_median_income=median_status,
-            income_quartile,
+            tu_income=etie,
             credit_quartile,
             payment_plan,
             monthly_payment,
@@ -134,6 +163,13 @@ estimation_dataset <- estimation_dataset %>%
             county_id,
             tract_id,
             block_group_id,
+            occupancy_status,
+            age,
+            estimated_current_home_value,
+            aspire_income=income,
+            household_size,
+            adult_count,
+            child_count,
             service_water,
             service_sewer,
             service_storm,
@@ -196,122 +232,7 @@ estimation_dataset <- estimation_dataset %>%
   ungroup() %>%
   mutate(lag_F_t=ifelse(is.na(lag_F_t), 0, lag_F_t))
 
-census_variables <- colnames(estimation_dataset)[42:89]
+census_variables <- colnames(estimation_dataset)[49:96]
 
 save(estimation_dataset, census_variables,
      file=paste0(working_data_dir, "/estimation_dataset.RData"))
-
-# All
-estimation_dataset <- read_csv(paste0(working_data_dir, "/servus_query/estimation_dataset_all.csv"))
-
-estimation_dataset <- estimation_dataset %>%
-  mutate_at(c("previous_bill_amount",
-              "previous_unpaid_amount",
-              "amount_billed",
-              "amount_trans_billed",
-              "fees",
-              "amount_paid",
-              "cleanriver_discount",
-              "rct_discount",
-              "linc_discount",
-              "discount",
-              "liens",
-              "writeoff",
-              "refund",
-              "transfer",
-              "running_owed",
-              "water_consumption",
-              "usage_bill",
-              "payment_plan_amount"),
-            as.numeric) %>%
-  mutate(due_date=case_when(
-    monthly_payment | payment_plan ~ bill_date + days(90),
-    TRUE ~ due_date
-  )) %>%
-  arrange(account_number, bill_date) %>%
-  group_by(account_number) %>%
-  mutate(first_bill=row_number()==1) %>%
-  filter(bill_date>="2019/01/01")
-
-estimation_dataset <- estimation_dataset %>%
-  full_join(cycle_bill_date, by="cycle_code") %>%
-  mutate(date_diff=abs(as.numeric(difftime(bill_date.x, bill_date.y, units="days")))) %>%
-  group_by(account_number, bill_date.x, due_date) %>%
-  slice_min(order_by=date_diff, n=1, with_ties=FALSE) %>%
-  ungroup()
-
-estimation_dataset <- bind_rows(estimation_dataset %>%
-                                  filter(!first_bill, type_code!="FINAL", !is_rebill) %>%
-                                  group_by(account_number) %>%
-                                  mutate(n=n()) %>%
-                                  filter(n>1 & any(date_diff>=30)) %>%
-                                  ungroup() %>%
-                                  arrange(account_number, bill_date.x) %>%
-                                  group_by(account_number) %>%
-                                  mutate(t=fix_sequence(t)) %>%
-                                  ungroup(),
-                                estimation_dataset %>%
-                                  filter(!first_bill, type_code!="FINAL", !is_rebill) %>%
-                                  group_by(account_number) %>%
-                                  mutate(n=n()) %>%
-                                  filter(n<=1 | all(date_diff<30)) %>%
-                                  ungroup(),
-                                estimation_dataset %>%
-                                  filter(first_bill | type_code=="FINAL" | is_rebill))
-
-estimation_dataset <- estimation_dataset %>%
-  arrange(account_number, start_date) %>%
-  group_by(account_number) %>%
-  mutate(D_t=case_when(
-    first_bill ~ 0,
-    TRUE ~ previous_unpaid_amount)) %>%
-  ungroup()
-
-estimation_dataset <- estimation_dataset %>%
-  transmute(id=account_number,
-            bill_date=bill_date.x,
-            due_date,
-            t,
-            B_t=amount_trans_billed+
-              cleanriver_discount+rct_discount+linc_discount+discount+
-              liens+writeoff+refund+transfer,
-            D_t=D_t,
-            F_t=fees,
-            O_t=B_t+D_t,
-            E_t=amount_paid,
-            lag_w_t=water_consumption,
-            has_environment_discount=cleanriver_discount<0,
-            shutoff_date=cutoff_date,
-            reconnect_date,
-            account_status=type_code,
-            ufh=ufh_status,
-            fa_eligible=fa_status,
-            below_median_income=median_status,
-            income,
-            income_quartile,
-            credit_quartile,
-            payment_plan,
-            monthly_payment,
-            is_rebill,
-            first_bill,
-            cycle_code,
-            state_id,
-            county_id,
-            tract_id,
-            block_group_id,
-            service_water,
-            service_sewer,
-            service_storm,
-            rct_discount,
-            cleanriver_discount,
-            linc_discount,
-            crisis_voucher=discount) %>%
-  arrange(id, t) %>%
-  group_by(id) %>%
-  mutate(w_t=lead(lag_w_t, 1),
-         lag_F_t=lag(F_t, 1)) %>%
-  ungroup() %>%
-  mutate(lag_F_t=ifelse(is.na(lag_F_t), 0, lag_F_t))
-
-save(estimation_dataset,
-     file=paste0(wd, "/estimation_dataset_all.RData"))

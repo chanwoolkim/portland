@@ -18,8 +18,10 @@ ordered_bills AS (
     *,
     LEAD(source_code, 1) OVER (PARTITION BY account_number ORDER BY bill_date) AS next_source_code,
     LEAD(due_date, 1) OVER (PARTITION BY account_number ORDER BY bill_date) AS next_due_date,
+    COALESCE(LEAD(amount, 1) OVER (PARTITION BY account_number ORDER BY bill_date), 0) AS next_amount,
     LEAD(source_code, 2) OVER (PARTITION BY account_number ORDER BY bill_date) AS next_next_source_code,
     LEAD(due_date, 2) OVER (PARTITION BY account_number ORDER BY bill_date) AS next_next_due_date,
+    COALESCE(LEAD(amount, 2) OVER (PARTITION BY account_number ORDER BY bill_date), 0) AS next_next_amount
   FROM filtered_bills
   WHERE bill_num = 1
 ),
@@ -45,6 +47,11 @@ encapsulate_amount AS (
       COALESCE(non_bill_generated_changes, 0) AS non_bill_generated_changes,
       COALESCE(total_payments, 0) AS total_payments,
       COALESCE(amount, 0) AS amount,
+      CASE 
+        WHEN source_code = 'QB1' AND next_source_code = 'QB2' AND next_next_source_code = 'QB3' THEN amount + next_amount + next_next_amount
+        WHEN source_code = 'QB1' AND next_source_code = 'QB2' THEN amount + next_amount
+        ELSE amount
+      END AS current_amount,
   FROM ordered_bills AS bill
   WHERE bill.type_code = 'REGLR' OR bill.type_code = 'FINAL'
 ),
@@ -56,11 +63,8 @@ quarterly_bill AS (
     end_date,
     due_date,
     bill_date,
-    CASE 
-      WHEN source_code = 'QB1' AND non_bill_generated_changes > 0 THEN ar_net_after_bill - ar_due_before_bill - non_bill_generated_changes - LEAST(previous_bill_amount + total_payments, 0)
-      WHEN source_code = 'QB1' THEN ar_net_after_bill - ar_due_before_bill + LEAST(previous_bill_amount + total_payments, 0)
-      ELSE amount
-    END AS amount_due,
+    ar_net_after_bill AS amount_due,
+    current_amount,
     created,
     previous_bill_amount,
     ar_due_before_bill + ar_unapplied_cr_before_bill AS previous_unpaid_amount
@@ -78,6 +82,7 @@ SELECT
   quarterly_bill.created,
   quarterly_bill.previous_bill_amount,
   quarterly_bill.previous_unpaid_amount,
+  quarterly_bill.current_amount,
   quarterly_bill.amount_due
 FROM quarterly_bill
   JOIN `servus-291816.portland_working.account` account 

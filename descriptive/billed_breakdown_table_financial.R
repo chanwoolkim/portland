@@ -1,10 +1,19 @@
 # Debt decomposition ####
 code_info <- read_csv(paste0(working_data_dir, "/servus_query/code_info.csv"))
+income_credit <- read_csv(paste0(working_data_dir, "/servus_query/income_credit.csv"))
 transaction_aggregate <- read_csv(paste0(working_data_dir, "/servus_query/2024q4_financial/transaction_aggregate.csv"))
 payment_plan_aggregate <- read_csv(paste0(working_data_dir, "/servus_query/2024q4_financial/payment_plan_aggregate.csv"))
 collection_aggregate <- read_csv(paste0(working_data_dir, "/servus_query/2024q4_financial/collection_aggregate.csv"))
 final_aggregate <- read_csv(paste0(working_data_dir, "/servus_query/2024q4_financial/final_aggregate.csv"))
 account_count <- read_csv(paste0(working_data_dir, "/servus_query/2024q4_financial/account_count.csv"))
+
+income_credit <- income_credit %>%
+  filter(year==2024)
+
+ufh_threshold <- round(as.numeric(quantile(income_credit$etie, 0.15)*1.037*1000), 0)
+ufh_threshold <- paste0("\\$",
+                        prettyNum(ufh_threshold, big.mark=",", scientific=FALSE))
+export_tex(ufh_threshold, "ufh_threshold")
 
 account_count_median <- account_count %>%
   group_by(median_status) %>%
@@ -251,7 +260,9 @@ transaction_aggregate_summary_income <- transaction_aggregate_summary_income %>%
          total_delayed=total_delayed+collection_amount-collection_paid+cumsum(liens)) %>%
   ungroup() %>%
   filter(year==2024, quarter==4) %>%
-  select(income_quartile, leftover_debt, discount, cleanriver_discount, final_discount, total_delayed)
+  select(income_quartile, leftover_debt, discount, cleanriver_discount, final_discount, total_delayed) %>%
+  mutate_at(vars(leftover_debt, discount, cleanriver_discount, final_discount, total_delayed),
+            ~ifelse(.<0, 0, .))
 
 # Aggregate over credit quartiles
 transaction_aggregate_summary_credit <- transaction_aggregate_summary %>%
@@ -286,7 +297,9 @@ transaction_aggregate_summary_credit <- transaction_aggregate_summary_credit %>%
          total_delayed=total_delayed+collection_amount-collection_paid+cumsum(liens)) %>%
   ungroup() %>%
   filter(year==2024, quarter==4) %>%
-  select(credit_quartile, leftover_debt, discount, cleanriver_discount, final_discount, total_delayed)
+  select(credit_quartile, leftover_debt, discount, cleanriver_discount, final_discount, total_delayed) %>%
+  mutate_at(vars(leftover_debt, discount, cleanriver_discount, final_discount, total_delayed),
+            ~ifelse(.<0, 0, .))
 
 # Aggregate over both quartiles
 transaction_aggregate_summary <- transaction_aggregate_summary %>%
@@ -312,6 +325,10 @@ for (k in 1:4) {
     }
   }
 }
+
+transaction_aggregate_summary <- transaction_aggregate_summary %>%
+  mutate_at(vars(leftover_debt, discount, cleanriver_discount, final_discount, total_delayed),
+            ~ifelse(.<0, 0, .))
 
 income_summary <- transaction_aggregate_summary_income %>%
   mutate(leftover_debt_percent=leftover_debt/sum(leftover_debt)*100,
@@ -411,9 +428,9 @@ tab <- TexRow(c("", "Leftover Debt", "Discount", "Environment Discount", "Write-
                                               account_count_income[3, 2]) %>% as.numeric(),
                                             dec=c(rep(c(0, 1), 5), 0), percentage=c(rep(c(F, T), 5), F)) +
   TexMidrule(list(c(1, 1), c(2, 3), c(4, 5), c(6, 7), c(8, 9), c(10, 11), c(12, 12))) +
-  TexRow("(Alternative Deadbeat Definition)") / TexRow(c(above_median_summary[1, c(2, 7, 3, 8, 4, 9, 5, 10, 6, 11)],
-                                                         account_count_median[1, 2]) %>% as.numeric(),
-                                                       dec=c(rep(c(0, 1), 5), 0), percentage=c(rep(c(F, T), 5), F)) +
+  TexRow("(Above Median Income)") / TexRow(c(above_median_summary[1, c(2, 7, 3, 8, 4, 9, 5, 10, 6, 11)],
+                                             account_count_median[1, 2]) %>% as.numeric(),
+                                           dec=c(rep(c(0, 1), 5), 0), percentage=c(rep(c(F, T), 5), F)) +
   TexMidrule() +
   TexRow("Total") / TexRow(c(income_summary[4, c(2, 7, 3, 8, 4, 9, 5, 10, 6, 11)],
                              sum(account_count_income$n)) %>% as.numeric(),
@@ -421,7 +438,49 @@ tab <- TexRow(c("", "Leftover Debt", "Discount", "Environment Discount", "Write-
 
 TexSave(tab,
         filename=paste0(output_dir, "/tables/ufh_summary"),
-        positions=rep("c", 12))
+        positions=c("l", rep("c", 11)))
+
+total_uncollected <- round(sum(income_summary[4, 2:6])/1000, 1)
+export_tex(paste0("\\$",
+                  total_uncollected,
+                  " million"),
+           "total_uncollected")
+
+ufh_uncollected <- round(sum(income_summary[1, 2:6])/1000, 1)
+ufh_uncollected_share <- round(sum(income_summary[1, 2:6])/sum(income_summary[4, 2:6])*100, 0)
+export_tex(paste0("\\$",
+                  ufh_uncollected,
+                  " million (",
+                  ufh_uncollected_share,
+                  "\\%)"),
+           "ufh_uncollected")
+
+above_means_uncollected <- round(sum(income_summary[3, 2:6])/1000, 1)
+above_means_uncollected_share <- round(sum(income_summary[3, 2:6])/sum(income_summary[4, 2:6])*100, 0)
+export_tex(paste0("\\$",
+                  above_means_uncollected,
+                  " million (",
+                  above_means_uncollected_share,
+                  "\\%)"),
+           "above_means_uncollected")
+
+above_median_uncollected <- round(sum(above_median_summary[1, 2:6])/1000, 1)
+above_median_uncollected_share <- round(sum(above_median_summary[1, 2:6])/sum(income_summary[4, 2:6])*100, 0)
+export_tex(paste0("\\$",
+                  above_median_uncollected,
+                  " million (",
+                  above_median_uncollected_share,
+                  "\\%)"),
+           "above_median_uncollected")
+
+above_median_leftover_debt <- round(as.numeric(above_median_summary[1, 2])/1000, 1)
+above_median_leftover_debt_share <- round(as.numeric(above_median_summary[1, 7]), 0)
+export_tex(paste0("\\$", 
+                  above_median_leftover_debt,
+                  " million (",
+                  above_median_leftover_debt_share,
+                  "\\%)"),
+           "above_median_leftover_debt")
 
 ufh_credit_summary <- income_credit_summary %>%
   filter(income_quartile==1) %>%
@@ -442,18 +501,18 @@ tab <- TexRow(c("UFH and Below", "Leftover Debt", "Discount", "Environment Disco
   TexMidrule(list(c(1, 1), c(2, 3), c(4, 5), c(6, 7), c(8, 9), c(10, 11))) +
   TexRow(c("Credit Quartile", rep(c("Amount", "Share"), 5), "n")) +
   TexMidrule() +
-  TexRow(c(ufh_credit_summary[1, c(1, 2, 7, 3, 8, 4, 9, 5, 10, 6, 11)],
-           account_count[1, 3]) %>% as.numeric(),
-         dec=c(0, rep(c(0, 1), 5), 0), percentage=c(F, rep(c(F, T), 5), F)) +
-  TexRow(c(ufh_credit_summary[2, c(1, 2, 7, 3, 8, 4, 9, 5, 10, 6, 11)],
-           account_count[2, 3]) %>% as.numeric(),
-         dec=c(0, rep(c(0, 1), 5), 0), percentage=c(F, rep(c(F, T), 5), F)) +
-  TexRow(c(ufh_credit_summary[3, c(1, 2, 7, 3, 8, 4, 9, 5, 10, 6, 11)],
-           account_count[3, 3]) %>% as.numeric(),
-         dec=c(0, rep(c(0, 1), 5), 0), percentage=c(F, rep(c(F, T), 5), F)) +
-  TexRow(c(ufh_credit_summary[4, c(1, 2, 7, 3, 8, 4, 9, 5, 10, 6, 11)],
-           account_count[4, 3]) %>% as.numeric(),
-         dec=c(0, rep(c(0, 1), 5), 0), percentage=c(F, rep(c(F, T), 5), F)) +
+  TexRow("Sub-Prime") / TexRow(c(ufh_credit_summary[1, c(2, 7, 3, 8, 4, 9, 5, 10, 6, 11)],
+                                 account_count[1, 3]) %>% as.numeric(),
+                               dec=c(rep(c(0, 1), 5), 0), percentage=c(rep(c(F, T), 5), F)) +
+  TexRow("Near-Prime") / TexRow(c(ufh_credit_summary[2, c(2, 7, 3, 8, 4, 9, 5, 10, 6, 11)],
+                                  account_count[2, 3]) %>% as.numeric(),
+                                dec=c(rep(c(0, 1), 5), 0), percentage=c(rep(c(F, T), 5), F)) +
+  TexRow("Prime") / TexRow(c(ufh_credit_summary[3, c(2, 7, 3, 8, 4, 9, 5, 10, 6, 11)],
+                             account_count[3, 3]) %>% as.numeric(),
+                           dec=c(rep(c(0, 1), 5), 0), percentage=c(rep(c(F, T), 5), F)) +
+  TexRow("Super-Prime") / TexRow(c(ufh_credit_summary[4, c(2, 7, 3, 8, 4, 9, 5, 10, 6, 11)],
+                                   account_count[4, 3]) %>% as.numeric(),
+                                 dec=c(rep(c(0, 1), 5), 0), percentage=c(rep(c(F, T), 5), F)) +
   TexMidrule() +
   TexRow("Total") / TexRow(c(ufh_credit_summary[5, c(2, 7, 3, 8, 4, 9, 5, 10, 6, 11)],
                              account_count_income[1, 2]) %>% as.numeric(),
@@ -461,7 +520,16 @@ tab <- TexRow(c("UFH and Below", "Leftover Debt", "Discount", "Environment Disco
 
 TexSave(tab,
         filename=paste0(output_dir, "/tables/ufh_credit_summary"),
-        positions=rep("c", 12))
+        positions=c("l", rep("c", 11)))
+
+ufh_low_credit_share <- round(as.numeric(account_count[1, 3])/
+                                as.numeric(account_count_income[1, 2])*100, 0)
+export_tex(paste0(ufh_low_credit_share, "\\%"),
+           "ufh_low_credit_share")
+
+ufh_low_credit_unpaid_debt_share <- round(as.numeric(ufh_credit_summary[1, 7]), 0)
+export_tex(paste0(ufh_low_credit_unpaid_debt_share, "\\%"),
+           "ufh_low_credit_unpaid_debt_share")
 
 below_credit_summary <- income_credit_summary %>%
   filter(income_quartile==2) %>%
@@ -482,18 +550,18 @@ tab <- TexRow(c("UFH to Means-Tested Cap", "Leftover Debt", "Discount", "Environ
   TexMidrule(list(c(1, 1), c(2, 3), c(4, 5), c(6, 7), c(8, 9), c(10, 11))) +
   TexRow(c("Credit Quartile", rep(c("Amount", "Share"), 5), "n")) +
   TexMidrule() +
-  TexRow(c(below_credit_summary[1, c(1, 2, 7, 3, 8, 4, 9, 5, 10, 6, 11)],
-           account_count[5, 3]) %>% as.numeric(),
-         dec=c(0, rep(c(0, 1), 5), 0), percentage=c(F, rep(c(F, T), 5), F)) +
-  TexRow(c(below_credit_summary[2, c(1, 2, 7, 3, 8, 4, 9, 5, 10, 6, 11)],
-           account_count[6, 3]) %>% as.numeric(),
-         dec=c(0, rep(c(0, 1), 5), 0), percentage=c(F, rep(c(F, T), 5), F)) +
-  TexRow(c(below_credit_summary[3, c(1, 2, 7, 3, 8, 4, 9, 5, 10, 6, 11)],
-           account_count[7, 3]) %>% as.numeric(),
-         dec=c(0, rep(c(0, 1), 5), 0), percentage=c(F, rep(c(F, T), 5), F)) +
-  TexRow(c(below_credit_summary[4, c(1, 2, 7, 3, 8, 4, 9, 5, 10, 6, 11)],
-           account_count[8, 3]) %>% as.numeric(),
-         dec=c(0, rep(c(0, 1), 5), 0), percentage=c(F, rep(c(F, T), 5), F)) +
+  TexRow("Sub-Prime") / TexRow(c(below_credit_summary[1, c(2, 7, 3, 8, 4, 9, 5, 10, 6, 11)],
+                                 account_count[5, 3]) %>% as.numeric(),
+                               dec=c(rep(c(0, 1), 5), 0), percentage=c(rep(c(F, T), 5), F)) +
+  TexRow("Near-Prime") / TexRow(c(below_credit_summary[2, c(2, 7, 3, 8, 4, 9, 5, 10, 6, 11)],
+                                  account_count[6, 3]) %>% as.numeric(),
+                                dec=c(rep(c(0, 1), 5), 0), percentage=c(rep(c(F, T), 5), F)) +
+  TexRow("Prime") / TexRow(c(below_credit_summary[3, c(2, 7, 3, 8, 4, 9, 5, 10, 6, 11)],
+                             account_count[7, 3]) %>% as.numeric(),
+                           dec=c(rep(c(0, 1), 5), 0), percentage=c(rep(c(F, T), 5), F)) +
+  TexRow("Super-Prime") / TexRow(c(below_credit_summary[4, c(2, 7, 3, 8, 4, 9, 5, 10, 6, 11)],
+                                   account_count[8, 3]) %>% as.numeric(),
+                                 dec=c(rep(c(0, 1), 5), 0), percentage=c(rep(c(F, T), 5), F)) +
   TexMidrule() +
   TexRow("Total") / TexRow(c(below_credit_summary[5, c(2, 7, 3, 8, 4, 9, 5, 10, 6, 11)],
                              account_count_income[2, 2]) %>% as.numeric(),
@@ -501,7 +569,16 @@ tab <- TexRow(c("UFH to Means-Tested Cap", "Leftover Debt", "Discount", "Environ
 
 TexSave(tab,
         filename=paste0(output_dir, "/tables/below_credit_summary"),
-        positions=rep("c", 12))
+        positions=c("l", rep("c", 11)))
+
+below_low_credit_share <- round(as.numeric(account_count[5, 3])/
+                                  as.numeric(account_count_income[2, 2])*100, 0)
+export_tex(paste0(below_low_credit_share, "\\%"),
+           "below_low_credit_share")
+
+below_low_credit_unpaid_debt_share <- round(as.numeric(below_credit_summary[1, 7]), 0)
+export_tex(paste0(below_low_credit_unpaid_debt_share, "\\%"),
+           "below_low_credit_unpaid_debt_share")
 
 above_credit_summary <- income_credit_summary %>%
   filter(income_quartile==3) %>%
@@ -522,18 +599,18 @@ tab <- TexRow(c("Above Means-Tested Cap", "Leftover Debt", "Discount", "Environm
   TexMidrule(list(c(1, 1), c(2, 3), c(4, 5), c(6, 7), c(8, 9), c(10, 11))) +
   TexRow(c("Credit Quartile", rep(c("Amount", "Share"), 5), "n")) +
   TexMidrule() +
-  TexRow(c(above_credit_summary[1, c(1, 2, 7, 3, 8, 4, 9, 5, 10, 6, 11)],
-           account_count[9, 3]) %>% as.numeric(),
-         dec=c(0, rep(c(0, 1), 5), 0), percentage=c(F, rep(c(F, T), 5), F)) +
-  TexRow(c(above_credit_summary[2, c(1, 2, 7, 3, 8, 4, 9, 5, 10, 6, 11)],
-           account_count[10, 3]) %>% as.numeric(),
-         dec=c(0, rep(c(0, 1), 5), 0), percentage=c(F, rep(c(F, T), 5), F)) +
-  TexRow(c(above_credit_summary[3, c(1, 2, 7, 3, 8, 4, 9, 5, 10, 6, 11)],
-           account_count[11, 3]) %>% as.numeric(),
-         dec=c(0, rep(c(0, 1), 5), 0), percentage=c(F, rep(c(F, T), 5), F)) +
-  TexRow(c(above_credit_summary[4, c(1, 2, 7, 3, 8, 4, 9, 5, 10, 6, 11)],
-           account_count[12, 3]) %>% as.numeric(),
-         dec=c(0, rep(c(0, 1), 5), 0), percentage=c(F, rep(c(F, T), 5), F)) +
+  TexRow("Sub-Prime") / TexRow(c(above_credit_summary[1, c(2, 7, 3, 8, 4, 9, 5, 10, 6, 11)],
+                                 account_count[9, 3]) %>% as.numeric(),
+                               dec=c(rep(c(0, 1), 5), 0), percentage=c(rep(c(F, T), 5), F)) +
+  TexRow("Near-Prime") / TexRow(c(above_credit_summary[2, c(2, 7, 3, 8, 4, 9, 5, 10, 6, 11)],
+                                  account_count[10, 3]) %>% as.numeric(),
+                                dec=c(rep(c(0, 1), 5), 0), percentage=c(rep(c(F, T), 5), F)) +
+  TexRow("Prime") / TexRow(c(above_credit_summary[3, c(2, 7, 3, 8, 4, 9, 5, 10, 6, 11)],
+                             account_count[11, 3]) %>% as.numeric(),
+                           dec=c(rep(c(0, 1), 5), 0), percentage=c(rep(c(F, T), 5), F)) +
+  TexRow("Super-Prime") / TexRow(c(above_credit_summary[4, c(2, 7, 3, 8, 4, 9, 5, 10, 6, 11)],
+                                   account_count[12, 3]) %>% as.numeric(),
+                                 dec=c(rep(c(0, 1), 5), 0), percentage=c(rep(c(F, T), 5), F)) +
   TexMidrule() +
   TexRow("Total") / TexRow(c(above_credit_summary[5, c(2, 7, 3, 8, 4, 9, 5, 10, 6, 11)],
                              account_count_income[3, 2]) %>% as.numeric(),
@@ -541,4 +618,4 @@ tab <- TexRow(c("Above Means-Tested Cap", "Leftover Debt", "Discount", "Environm
 
 TexSave(tab,
         filename=paste0(output_dir, "/tables/above_credit_summary"),
-        positions=rep("c", 12))
+        positions=c("l", rep("c", 11)))
