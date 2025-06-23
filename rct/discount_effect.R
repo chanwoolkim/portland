@@ -60,10 +60,10 @@ estimation_dataset <- estimation_dataset %>%
          account_status!="FINAL",
          !is_rebill,
          !first_bill,
-         service_water, service_sewer, service_storm,
-         (fa_type != "Tier2" | is.na(fa_type)),
-         B_t>0, lag_w_t>0) %>%
-  mutate(bill=if_else(t==0, O_t-D_t, O_t),
+         (fa_type != "Tier2" | is.na(fa_type))) %>%
+  mutate(B_t=ifelse(B_t<0, 0, B_t),
+         lag_w_t=ifelse(lag_w_t<0, lag_w_t, lag_w_t),
+         bill=if_else(t==0, O_t-D_t, O_t),
          payment=-E_t,
          pay=payment<bill,
          payshare=if_else(O_t==0, NaN, pmin(pmax(payment/bill, 0), 1)),
@@ -103,9 +103,6 @@ info_treat_data <- estimation_dataset %>%
 
 # Discount (t==0)
 discount_treat_data <- estimation_dataset %>%
-  group_by(id) %>%
-  filter(any(t==1)) %>%
-  ungroup() %>%
   filter(t==0)
 
 

@@ -38,9 +38,7 @@ rct_bills <- estimation_dataset %>%
   filter(t==0)
 
 rct_next_bill_count <- estimation_dataset %>%
-  group_by(id) %>%
-  filter(any(t==1)) %>%
-  ungroup() %>%
+  filter(t==0) %>%
   summarise(n=n_distinct(id)) %>%
   pull(n)
 
@@ -151,11 +149,11 @@ balance_summary <- function(remove_severe_fa=TRUE) {
       summarise(across(c("B_t", "D_t", "F_t", "O_t", "E_t",
                          "lag_w_t", "delinquent",
                          "tu_income", "credit_score",
-                         "unemployment_rate_in_labor_force",
-                         "percent_of_house_holds_in_poverty",
-                         "average_house_hold_size",
-                         "percent_of_population_includes_black",
-                         "percent_of_population_includes_hispanic"), 
+                         "census_unemployment_rate_in_labor_force",
+                         "census_percent_of_house_holds_in_poverty",
+                         "census_average_house_hold_size",
+                         "census_percent_of_population_includes_black",
+                         "census_percent_of_population_includes_hispanic"), 
                        ~ mean(.x, na.rm = TRUE), .names = "mean_{.col}"),
                 n=n_distinct(id)) %>%
       ungroup(),
@@ -164,11 +162,11 @@ balance_summary <- function(remove_severe_fa=TRUE) {
       summarise(across(c("B_t", "D_t", "F_t", "O_t", "E_t",
                          "lag_w_t", "delinquent",
                          "tu_income", "credit_score",
-                         "unemployment_rate_in_labor_force",
-                         "percent_of_house_holds_in_poverty",
-                         "average_house_hold_size",
-                         "percent_of_population_includes_black",
-                         "percent_of_population_includes_hispanic"), 
+                         "census_unemployment_rate_in_labor_force",
+                         "census_percent_of_house_holds_in_poverty",
+                         "census_average_house_hold_size",
+                         "census_percent_of_population_includes_black",
+                         "census_percent_of_population_includes_hispanic"), 
                        ~ sd(.x, na.rm = TRUE), .names = "sd_{.col}")) %>%
       ungroup(),
     by="discount_grid")
@@ -199,16 +197,16 @@ balance_summary <- function(remove_severe_fa=TRUE) {
                                                    balance_summary_df$sd_credit_score)), dec=0) +
     TexMidrule() +
     TexRow("\\textbf{Demographics (Census)}") +
-    TexRow("\\quad Unemployment Rate") / TexRow(c(rbind(balance_summary_df$mean_unemployment_rate_in_labor_force,
-                                                        balance_summary_df$sd_unemployment_rate_in_labor_force)), dec=1, percent=TRUE) +
-    TexRow("\\quad \\% Households in Poverty") / TexRow(c(rbind(balance_summary_df$mean_percent_of_house_holds_in_poverty,
-                                                                balance_summary_df$sd_percent_of_house_holds_in_poverty)), dec=1, percent=TRUE) +
-    TexRow("\\quad Average Household Size") / TexRow(c(rbind(balance_summary_df$mean_average_house_hold_size,
-                                                             balance_summary_df$sd_average_house_hold_size)), dec=1) +
-    TexRow("\\quad \\% Black") / TexRow(c(rbind(balance_summary_df$mean_percent_of_population_includes_black,
-                                                balance_summary_df$sd_percent_of_population_includes_black)), dec=1, percent=TRUE) +
-    TexRow("\\quad \\% Hispanic") / TexRow(c(rbind(balance_summary_df$mean_percent_of_population_includes_hispanic,
-                                                   balance_summary_df$sd_percent_of_population_includes_hispanic)), dec=1, percent=TRUE) +
+    TexRow("\\quad Unemployment Rate") / TexRow(c(rbind(balance_summary_df$mean_census_unemployment_rate_in_labor_force,
+                                                        balance_summary_df$sd_census_unemployment_rate_in_labor_force)), dec=1, percent=TRUE) +
+    TexRow("\\quad \\% Households in Poverty") / TexRow(c(rbind(balance_summary_df$mean_census_percent_of_house_holds_in_poverty,
+                                                                balance_summary_df$sd_census_percent_of_house_holds_in_poverty)), dec=1, percent=TRUE) +
+    TexRow("\\quad Average Household Size") / TexRow(c(rbind(balance_summary_df$mean_census_average_house_hold_size,
+                                                             balance_summary_df$sd_census_average_house_hold_size)), dec=1) +
+    TexRow("\\quad \\% Black") / TexRow(c(rbind(balance_summary_df$mean_census_percent_of_population_includes_black,
+                                                balance_summary_df$sd_census_percent_of_population_includes_black)), dec=1, percent=TRUE) +
+    TexRow("\\quad \\% Hispanic") / TexRow(c(rbind(balance_summary_df$mean_census_percent_of_population_includes_hispanic,
+                                                   balance_summary_df$sd_census_percent_of_population_includes_hispanic)), dec=1, percent=TRUE) +
     TexMidrule() +
     TexRow("\\textbf{Number of Accounts}") / 
     TexRow(balance_summary_df$n, cspan=rep(2, 9), dec=0)

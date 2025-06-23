@@ -19,7 +19,7 @@ if (Sys.info()[4]=="JDUBE-LT"){
 setwd(wd)
 wd <- getwd()
 code_dir <- paste0(wd, "/code")
-data_dir <- paste0(wd, "/data/raw/PWB")
+data_dir <- paste0(wd, "/data/raw")
 tu_data_dir <- paste0(wd, "/data/raw/TU")
 auxiliary_data_dir <- paste0(wd, "/data/auxiliary")
 working_data_dir <- paste0(wd, "/data/analysis")
@@ -59,7 +59,6 @@ source(paste0(code_dir, "/rct/rct1_randomize.R"))
 source(paste0(code_dir, "/descriptive/descriptive_statistics.R"))
 source(paste0(code_dir, "/descriptive/billed_breakdown_graph.R"))
 source(paste0(code_dir, "/descriptive/billed_breakdown_table_financial.R"))
-source(paste0(code_dir, "/descriptive/billed_breakdown_table_quartile.R"))
 
 #---------+---------+---------+---------+---------+---------+
 # RCT Analysis
@@ -67,7 +66,6 @@ source(paste0(code_dir, "/descriptive/billed_breakdown_table_quartile.R"))
 source(paste0(code_dir, "/rct/discount_effect.R"))
 source(paste0(code_dir, "/rct/threshold_effect.R"))
 source(paste0(code_dir, "/rct/threshold_treatment_effect.R"))
-source(paste0(code_dir, "/rct/survival_analysis.R"))
 
 end_time <- Sys.time()
 end_time-start_time

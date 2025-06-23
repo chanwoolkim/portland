@@ -69,7 +69,8 @@ estimation_dataset <- estimation_dataset %>%
          account_status!="FINAL",
          !is_rebill,
          !first_bill) %>%
-  left_join(aspire_income_quartile, by=c("id"))
+  left_join(aspire_income_quartile, by=c("id")) %>%
+  rename(aspire_income=aspire_lu_inc_model_v6_amt)
 
 # Only choose those who received the "next bill"
 # Only choose those who got "full service" (water, sewer, and stormwater)
@@ -80,11 +81,12 @@ threshold_data_all <- estimation_dataset_all %>%
   ungroup() %>%
   arrange(id, bill_date) %>%
   group_by(id) %>%
-  mutate(next_bill_date=lead(bill_date)) %>%
+  mutate(B_t=ifelse(B_t<0, 0, B_t),
+         lag_w_t=ifelse(lag_w_t<0, lag_w_t, lag_w_t),
+         next_bill_date=lead(bill_date)) %>%
   ungroup() %>%
   filter(service_water, service_sewer, service_storm,
          bill_date>="2024-12-12", bill_date<="2025-03-14",
-         B_t>0, lag_w_t>0,
          !id %in% estimation_dataset$id)
 
 threshold_data_count <- threshold_data_all %>%
@@ -153,11 +155,12 @@ threshold_data_all <- threshold_data_all %>%
 threshold_data_pre <- estimation_dataset_all %>%
   arrange(id, bill_date) %>%
   group_by(id) %>%
-  mutate(next_bill_date=lead(bill_date)) %>%
+  mutate(next_bill_date=lead(bill_date),
+         B_t=ifelse(B_t<0, 0, B_t),
+         lag_w_t=ifelse(lag_w_t<0, lag_w_t, lag_w_t)) %>%
   ungroup() %>%
   filter(service_water, service_sewer, service_storm,
          bill_date>="2024-01-01", bill_date<="2024-12-31",
-         B_t>0, lag_w_t>0,
          !monthly_payment) %>%
   mutate(bill=O_t)
 
@@ -165,11 +168,12 @@ threshold_data_pre <- estimation_dataset_all %>%
 threshold_data_covid <- estimation_dataset_all %>%
   arrange(id, bill_date) %>%
   group_by(id) %>%
-  mutate(next_bill_date=lead(bill_date)) %>%
+  mutate(next_bill_date=lead(bill_date),
+         B_t=ifelse(B_t<0, 0, B_t),
+         lag_w_t=ifelse(lag_w_t<0, lag_w_t, lag_w_t)) %>%
   ungroup() %>%
   filter(service_water, service_sewer, service_storm,
          bill_date>="2021-01-01", bill_date<="2021-12-31",
-         B_t>0, lag_w_t>0,
          !monthly_payment) %>%
   mutate(bill=O_t)
 
@@ -177,11 +181,12 @@ threshold_data_covid <- estimation_dataset_all %>%
 threshold_data_precovid <- estimation_dataset_all %>%
   arrange(id, bill_date) %>%
   group_by(id) %>%
-  mutate(next_bill_date=lead(bill_date)) %>%
+  mutate(next_bill_date=lead(bill_date),
+         B_t=ifelse(B_t<0, 0, B_t),
+         lag_w_t=ifelse(lag_w_t<0, lag_w_t, lag_w_t)) %>%
   ungroup() %>%
   filter(service_water, service_sewer, service_storm,
          bill_date>="2019-01-01", bill_date<="2019-12-31",
-         B_t>0, lag_w_t>0,
          !monthly_payment) %>%
   mutate(bill=O_t)
 
@@ -192,10 +197,12 @@ threshold_data_rct <- estimation_dataset %>%
   ungroup() %>%
   arrange(id, bill_date) %>%
   group_by(id) %>%
-  mutate(next_bill_date=lead(bill_date)) %>%
+  mutate(next_bill_date=lead(bill_date),
+         B_t=ifelse(B_t<0, 0, B_t),
+         lag_w_t=ifelse(lag_w_t<0, lag_w_t, lag_w_t)) %>%
   ungroup() %>%
   filter(service_water, service_sewer, service_storm,
-         t==0, B_t>0, lag_w_t>0,
+         t==0, 
          D_t>=0, !monthly_payment, is.na(payment_plan)) %>%
   mutate(bill=O_t-D_t)
 

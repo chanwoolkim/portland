@@ -140,10 +140,12 @@ threshold_data_rct <- estimation_dataset %>%
   ungroup() %>%
   arrange(id, bill_date) %>%
   group_by(id) %>%
-  mutate(next_bill_date=lead(bill_date)) %>%
+  mutate(next_bill_date=lead(bill_date),
+         B_t=ifelse(B_t<0, 0, B_t),
+         lag_w_t=ifelse(lag_w_t<0, lag_w_t, lag_w_t)) %>%
   ungroup() %>%
   filter(service_water, service_sewer, service_storm,
-         t==0, B_t>0, lag_w_t>0,
+         t==0, 
          D_t>=0, !monthly_payment, is.na(payment_plan)) %>%
   mutate(bill=O_t-D_t)
 
