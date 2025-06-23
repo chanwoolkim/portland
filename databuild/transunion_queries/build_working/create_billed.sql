@@ -77,7 +77,7 @@ SELECT
   quarterly_bill.end_date,
   quarterly_bill.due_date,
   quarterly_bill.bill_date,
-  COALESCE(LEAD(bill_date) OVER (PARTITION BY quarterly_bill.tu_id ORDER BY bill_date ASC), CURRENT_DATE) AS next_bill_date,
+  COALESCE(LEAD(bill_date) OVER (PARTITION BY quarterly_bill.tu_id ORDER BY bill_date ASC), '7/1/2025') AS next_bill_date,
   quarterly_bill.created,
   quarterly_bill.previous_bill_amount,
   quarterly_bill.previous_unpaid_amount,

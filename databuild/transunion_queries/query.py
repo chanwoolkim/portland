@@ -4,6 +4,7 @@ def load_sql_query(file_path):
     with open(file_path, 'r') as file:
         return file.read()
 
+
 # Main ####
 # Load RCT subjects
 discount = duckdb.read_parquet(os.path.join(working_data_dir, 'pre-processed', 'discount.parquet'))
@@ -50,7 +51,6 @@ create_code_info = load_sql_query(code_dir + '/build_working/create_code_info.sq
 code_info = duckdb.sql(create_code_info).fetchdf()
 code_info.to_parquet(os.path.join(working_data_dir, 'processed', 'code_info.parquet'))
 
- ##### TO DO
 create_usage = load_sql_query(code_dir + '/build_working/create_usage.sql')
 usage = duckdb.sql(create_usage).fetchdf()
 usage.to_parquet(os.path.join(working_data_dir, 'processed', 'usage.parquet'))

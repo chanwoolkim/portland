@@ -1,7 +1,7 @@
 CREATE OR REPLACE TABLE `servus-291816.portland_working.estimation_dataset_all` AS
 WITH ranked_usage AS (
   SELECT
-    account_number,
+    tu_id,
     item_number,
     bill_run_date,
     location_id,
@@ -22,7 +22,7 @@ WITH ranked_usage AS (
 ),
 usage_info AS (
   SELECT
-    account_number,
+    tu_id,
     bill_run_date,
     location_id,
     bill_code,
@@ -39,20 +39,20 @@ usage_info AS (
     updated
   FROM ranked_usage
   WHERE row_num = 1
-  ORDER BY account_number DESC
+  ORDER BY tu_id DESC
 ),
 water_usage_info AS (
   SELECT DISTINCT
-    account_number,
+    tu_id,
     bill_run_date,
     AVG(CASE WHEN report_context = 'WCONS' THEN cons_level_amount END) AS water_consumption,
     SUM(bc_detail_amount) AS usage_bill
   FROM usage_info
-  GROUP BY account_number, bill_run_date
+  GROUP BY tu_id, bill_run_date
 ),
 bill_info AS (
   SELECT
-    account_number,
+    tu_id,
     bill_date,
     EXTRACT(YEAR FROM bill_date) AS year,
     EXTRACT(QUARTER FROM bill_date) AS quarter,
@@ -84,31 +84,31 @@ bill_info AS (
 ),
 on_payment_plan AS (
   SELECT DISTINCT
-    payment_plan.account_number,
+    payment_plan.tu_id,
     bill_date,
     TRUE AS payment_plan
   FROM `servus-291816.portland_working.payment_plan` AS payment_plan
   INNER JOIN bill_info
-  ON bill_info.account_number = payment_plan.account_number
+  ON bill_info.tu_id = payment_plan.tu_id
     AND payment_plan.start_date <= bill_info.next_bill_date
     AND payment_plan.end_date >= bill_info.bill_date
 ),
 payment_plan_info AS (
   SELECT
-    billed_paid.account_number,
+    billed_paid.tu_id,
     billed_paid.bill_date,
     SUM(payment_plan_transaction.amount) AS payment_plan_amount
   FROM `servus-291816.portland_working.billed_paid` AS billed_paid
   INNER JOIN `servus-291816.portland_working.payment_plan_transaction` AS payment_plan_transaction
-  ON billed_paid.account_number = payment_plan_transaction.account_number
+  ON billed_paid.tu_id = payment_plan_transaction.tu_id
   WHERE payment_plan_transaction.action_date >= billed_paid.next_bill_date
     AND payment_plan_transaction.end_date >= billed_paid.next_bill_date
     AND payment_plan_transaction.start_date < billed_paid.next_bill_date
-  GROUP BY billed_paid.account_number, billed_paid.bill_date
+  GROUP BY billed_paid.tu_id, billed_paid.bill_date
 ),
 account_consolidated AS (
   SELECT
-    account.account_number,
+    account.tu_id,
     account.person_id,
     account.location_id,
     account.cycle_code,
@@ -135,7 +135,7 @@ account_consolidated AS (
     CAST(census_data.census_year AS int64) AS census_year
   FROM `servus-291816.portland_working.account` AS account
   LEFT JOIN `servus-291816.portland_working.account_financial` AS account_financial
-    ON account.account_number = account_financial.account_number
+    ON account.tu_id = account_financial.tu_id
   LEFT JOIN `servus-291816.census_data.census_data` AS census_data
     ON account.state_id = census_data.state_id
     AND account.county_id = census_data.county_id
@@ -153,7 +153,7 @@ SELECT DISTINCT
   water_usage_info.water_consumption,
   water_usage_info.usage_bill,
   account_consolidated.*
-  EXCEPT(account_number),
+  EXCEPT(tu_id),
   account_income.income AS tu_income,
   account_income.credit_score AS tu_credit_score,
   on_payment_plan.payment_plan,
@@ -162,23 +162,23 @@ SELECT DISTINCT
   FROM bill_info
   LEFT JOIN water_usage_info
     ON bill_info.bill_date = water_usage_info.bill_run_date
-    AND bill_info.account_number = water_usage_info.account_number
+    AND bill_info.tu_id = water_usage_info.tu_id
   LEFT JOIN account_consolidated
-    ON bill_info.account_number = account_consolidated.account_number
+    ON bill_info.tu_id = account_consolidated.tu_id
   LEFT JOIN on_payment_plan
-    ON bill_info.account_number = on_payment_plan.account_number
+    ON bill_info.tu_id = on_payment_plan.tu_id
     AND bill_info.bill_date = on_payment_plan.bill_date
   LEFT JOIN payment_plan_info
-    ON bill_info.account_number = payment_plan_info.account_number
+    ON bill_info.tu_id = payment_plan_info.tu_id
     AND bill_info.bill_date = payment_plan_info.bill_date
   LEFT JOIN (
     SELECT 
-      account_number,
+      tu_id,
       bill_date,
       source_code,
       type_code,
       is_rebill,
-      ROW_NUMBER() OVER (PARTITION BY account_number, bill_date ORDER BY updated DESC) AS bill_num
+      ROW_NUMBER() OVER (PARTITION BY tu_id, bill_date ORDER BY updated DESC) AS bill_num
     FROM `servus-291816.portlandWater.bill` AS bill
     WHERE (bill.type_code = 'REGLR' OR bill.type_code = 'FINAL')
     AND bill.is_canceled = FALSE
@@ -190,30 +190,30 @@ SELECT DISTINCT
     AND bill.end_date IS NOT NULL
     AND bill.due_date IS NOT NULL
   ) AS bill_to_join
-    ON bill_info.account_number = bill_to_join.account_number 
+    ON bill_info.tu_id = bill_to_join.tu_id 
     AND bill_info.bill_date = bill_to_join.bill_date
     AND bill_to_join.bill_num = 1
   LEFT JOIN `servus-291816.portland_working.account_income` AS account_income
-    ON bill_info.account_number = account_income.account_number
+    ON bill_info.tu_id = account_income.tu_id
     AND bill_info.year = account_income.year
     AND bill_info.quarter = account_income.quarter
   LEFT JOIN (
     SELECT
-      account_number,
+      tu_id,
       effective_date AS cutoff_date
     FROM `servus-291816.portland_working.action` AS action
     WHERE action_code = 'CUTOF'
   ) AS cutoff_action
-    ON bill_info.account_number = cutoff_action.account_number
+    ON bill_info.tu_id = cutoff_action.tu_id
     AND bill_info.bill_date <= cutoff_action.cutoff_date
     AND bill_info.next_bill_date > cutoff_action.cutoff_date
   LEFT JOIN (
     SELECT
-      account_number,
+      tu_id,
       effective_date AS reconnect_date
     FROM `servus-291816.portland_working.action` AS action
     WHERE action_code = 'RCNCT'
   ) AS reconnect_action
-    ON bill_info.account_number = reconnect_action.account_number
+    ON bill_info.tu_id = reconnect_action.tu_id
     AND bill_info.bill_date <= reconnect_action.reconnect_date
     AND bill_info.next_bill_date > reconnect_action.reconnect_date;
