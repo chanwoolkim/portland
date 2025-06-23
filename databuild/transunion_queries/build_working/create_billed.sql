@@ -1,9 +1,8 @@
-CREATE OR REPLACE TABLE `servus-291816.portland_working.billed` AS
 WITH filtered_bills AS (
   SELECT 
     *,
-    ROW_NUMBER() OVER (PARTITION BY account_number, bill_date ORDER BY updated DESC) AS bill_num
-  FROM `servus-291816.portlandWater.bill`
+    ROW_NUMBER() OVER (PARTITION BY tu_id, bill_date ORDER BY updated DESC) AS bill_num
+  FROM bill
   WHERE is_canceled = FALSE
     AND is_error = FALSE
     AND is_voided = FALSE
@@ -16,18 +15,18 @@ WITH filtered_bills AS (
 ordered_bills AS (
   SELECT 
     *,
-    LEAD(source_code, 1) OVER (PARTITION BY account_number ORDER BY bill_date) AS next_source_code,
-    LEAD(due_date, 1) OVER (PARTITION BY account_number ORDER BY bill_date) AS next_due_date,
-    COALESCE(LEAD(amount, 1) OVER (PARTITION BY account_number ORDER BY bill_date), 0) AS next_amount,
-    LEAD(source_code, 2) OVER (PARTITION BY account_number ORDER BY bill_date) AS next_next_source_code,
-    LEAD(due_date, 2) OVER (PARTITION BY account_number ORDER BY bill_date) AS next_next_due_date,
-    COALESCE(LEAD(amount, 2) OVER (PARTITION BY account_number ORDER BY bill_date), 0) AS next_next_amount
+    LEAD(source_code, 1) OVER (PARTITION BY tu_id ORDER BY bill_date) AS next_source_code,
+    LEAD(due_date, 1) OVER (PARTITION BY tu_id ORDER BY bill_date) AS next_due_date,
+    COALESCE(LEAD(amount, 1) OVER (PARTITION BY tu_id ORDER BY bill_date), 0) AS next_amount,
+    LEAD(source_code, 2) OVER (PARTITION BY tu_id ORDER BY bill_date) AS next_next_source_code,
+    LEAD(due_date, 2) OVER (PARTITION BY tu_id ORDER BY bill_date) AS next_next_due_date,
+    COALESCE(LEAD(amount, 2) OVER (PARTITION BY tu_id ORDER BY bill_date), 0) AS next_next_amount
   FROM filtered_bills
   WHERE bill_num = 1
 ),
 encapsulate_amount AS (
   SELECT
-      account_number,
+      tu_id,
       type_code,
       start_date,
       end_date,
@@ -57,7 +56,7 @@ encapsulate_amount AS (
 ),
 quarterly_bill AS (
   SELECT DISTINCT
-    account_number,
+    tu_id,
     type_code,
     start_date,
     end_date,
@@ -71,20 +70,20 @@ quarterly_bill AS (
   FROM encapsulate_amount
 )
 SELECT
-  quarterly_bill.account_number,
+  quarterly_bill.tu_id,
   quarterly_bill.type_code,
   account.cycle_code,
   quarterly_bill.start_date,
   quarterly_bill.end_date,
   quarterly_bill.due_date,
   quarterly_bill.bill_date,
-  COALESCE(LEAD(bill_date) OVER (PARTITION BY quarterly_bill.account_number ORDER BY bill_date ASC), CURRENT_DATE) AS next_bill_date,
+  COALESCE(LEAD(bill_date) OVER (PARTITION BY quarterly_bill.tu_id ORDER BY bill_date ASC), CURRENT_DATE) AS next_bill_date,
   quarterly_bill.created,
   quarterly_bill.previous_bill_amount,
   quarterly_bill.previous_unpaid_amount,
   quarterly_bill.current_amount,
   quarterly_bill.amount_due
 FROM quarterly_bill
-  JOIN `servus-291816.portland_working.account` AS account 
-  ON account.account_number = quarterly_bill.account_number
-ORDER BY account_number, bill_date;
+  JOIN account 
+  ON account.tu_id = quarterly_bill.tu_id
+ORDER BY tu_id, bill_date;

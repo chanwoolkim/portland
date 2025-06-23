@@ -1,16 +1,4 @@
 # Preliminary ####
-from google.oauth2 import service_account
-from google.cloud import bigquery
-import os
-import sys
-import pandas as pd
-
-# Define paths and credentials
-base_dir = os.path.abspath(sys.argv[0])
-project_dir = base_dir + '/../../..'
-code_dir = project_dir + '/code/databuild/servus_queries'
-output_dir = project_dir + '/data/analysis/servus_query'
-
 SERVICE_ACCOUNT_FILE = project_dir + '/data/raw/servus-291816-f03620559670.json'
 credentials = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE)
 project_id = 'servus-291816'
@@ -101,11 +89,6 @@ account_count.to_csv(output_dir + '/smart_discount/account_count.csv', index=Fal
 sql_account = load_sql_query(code_dir + '/build_descriptive/account_count_financial.sql')
 account_count = import_bigquery_data(sql_account)
 account_count.to_csv(output_dir + '/2024q4_financial/account_count.csv', index=False)
-
-sql_option = 'AND transaction_type LIKE \'%SHUTOFF%\''
-sql_account = sql_account.replace('-- OPTIONS_PLACEHOLDER', sql_option)
-sql_account = import_bigquery_data(sql_account)
-sql_account.to_csv(output_dir + '/2024q4_financial/account_count_shutoff.csv', index=False)
 
 # Revenue by category
 sql_transaction = load_sql_query(code_dir + '/build_descriptive/category_revenue.sql')
