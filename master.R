@@ -35,23 +35,19 @@ source(paste0(code_dir, "/utilities/preliminary.R"))
 #---------+---------+---------+---------+---------+---------+
 # Run Databuild Scripts
 #---------+---------+---------+---------+---------+---------+
-source(paste0(code_dir, "/databuild/setup_portland.R"))
-source(paste0(code_dir, "/databuild/setup_transunion.R"))
-source(paste0(code_dir, "/databuild/tidy_census_api.R"))
-source(paste0(code_dir, "/databuild/delinquency_measure.R"))
-source(paste0(code_dir, "/databuild/financial_assistance_clean.R"))
-source(paste0(code_dir, "/databuild/merge_data.R"))
-source(paste0(code_dir, "/databuild/bill_usage_clean.R"))
-source(paste0(code_dir, "/databuild/delinquency_construct.R"))
-source(paste0(code_dir, "/databuild/panel_construct.R"))
-source(paste0(code_dir, "/databuild/panel_estimation_construct.R"))
-source(paste0(code_dir, "/databuild/merge_portland_transunion.R"))
-source(paste0(code_dir, "/databuild/main_estimation_preparation.R"))
+# Databuild uses Python and SQL scripts (/databuild/master.py)
+# Then run the following scripts to build the estimation datasets
+source(paste0(code_dir, "/databuild/transunion_queries/estimation_dataset_preparation.R"))
+source(paste0(code_dir, "/databuild/transunion_queries/estimation_dataset_preparation_all.R"))
+source(paste0(code_dir, "/databuild/servus_queries/estimation_dataset_preparation.R"))
+source(paste0(code_dir, "/databuild/servus_queries/estimation_dataset_preparation_all.R"))
+
 
 #---------+---------+---------+---------+---------+---------+
 # Choose RCT Subjects
 #---------+---------+---------+---------+---------+---------+
 source(paste0(code_dir, "/rct/rct1_randomize.R"))
+
 
 #---------+---------+---------+---------+---------+---------+
 # Descriptive Statistics
@@ -59,6 +55,7 @@ source(paste0(code_dir, "/rct/rct1_randomize.R"))
 source(paste0(code_dir, "/descriptive/descriptive_statistics.R"))
 source(paste0(code_dir, "/descriptive/billed_breakdown_graph.R"))
 source(paste0(code_dir, "/descriptive/billed_breakdown_table_financial.R"))
+
 
 #---------+---------+---------+---------+---------+---------+
 # RCT Analysis

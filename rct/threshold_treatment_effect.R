@@ -119,7 +119,7 @@ bar_graph_treatment <- function(df, outcome, facet_var="",
 # Load Data
 #---------+---------+---------+---------+---------+---------+
 # RCT participants only
-load(paste0(working_data_dir, "/estimation_dataset.RData"))
+load(paste0(working_data_dir, "/servus/analysis/estimation_dataset.RData"))
 
 
 #---------+---------+---------+---------+---------+---------+
@@ -155,6 +155,7 @@ threshold_data_rct <- threshold_data_rct %>%
          fa=linc_discount<0,
          payshare=-E_t/bill,
          payshare=ifelse(bill<=0, NA, payshare),
+         payshare=ifelse(payshare<0, 0, payshare),
          payshare=ifelse(payshare>1, 1, payshare),
          payshare=round(payshare, 2),
          payment=-E_t,

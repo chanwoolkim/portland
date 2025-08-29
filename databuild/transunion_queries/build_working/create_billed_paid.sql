@@ -34,6 +34,7 @@ payment_between_dates AS (
     COALESCE(SUM(CASE WHEN transaction.transaction_category = 'rct_discount' THEN transaction.amount ELSE 0 END), 0) AS rct_discount,
     COALESCE(SUM(CASE WHEN transaction.transaction_category = 'linc_discount' THEN transaction.amount ELSE 0 END), 0) AS linc_discount,
     COALESCE(SUM(CASE WHEN transaction.transaction_category = 'discount' THEN transaction.amount ELSE 0 END), 0) AS discount,
+    COALESCE(SUM(CASE WHEN transaction.transaction_category = 'adjustment' THEN transaction.amount ELSE 0 END), 0) AS adjustment,
     COALESCE(SUM(CASE WHEN transaction.transaction_category = 'liens' THEN transaction.amount ELSE 0 END), 0) AS liens,
     COALESCE(SUM(CASE WHEN transaction.transaction_category = 'writeoff' THEN transaction.amount ELSE 0 END), 0) AS writeoff,
     COALESCE(SUM(CASE WHEN transaction.transaction_category = 'refund' THEN transaction.amount ELSE 0 END), 0) AS refund,
@@ -43,7 +44,7 @@ payment_between_dates AS (
     ON minimum_start.tu_id = bill.tu_id
   LEFT JOIN transaction
     ON transaction.tu_id = bill.tu_id
-    AND transaction.transaction_date < bill.next_bill_date
+  WHERE transaction.transaction_date < bill.next_bill_date
     AND (bill.start_date = minimum_start.first_start_date OR transaction.transaction_date >= bill.bill_date)
   GROUP BY
     bill.tu_id,
@@ -82,6 +83,7 @@ numbered_payments AS (
     payment_between_dates.rct_discount,
     payment_between_dates.linc_discount,
     payment_between_dates.discount,
+    payment_between_dates.adjustment,
     payment_between_dates.liens,
     payment_between_dates.writeoff,
     payment_between_dates.refund,
@@ -109,6 +111,7 @@ cleanriver_discount,
 rct_discount,
 linc_discount,
 discount,
+adjustment,
 liens,
 writeoff,
 refund,
@@ -116,8 +119,8 @@ transfer,
 SUM(
   CASE 
     WHEN row_num = 1 
-    THEN previous_unpaid_amount + amount_trans_billed + amount_paid + fees + cleanriver_discount + rct_discount + linc_discount + discount + liens + writeoff + refund + transfer
-    ELSE amount_trans_billed + amount_paid + fees + cleanriver_discount + rct_discount + linc_discount + discount + liens + writeoff + refund + transfer
+    THEN previous_unpaid_amount + amount_trans_billed + amount_paid + fees + cleanriver_discount + rct_discount + linc_discount + discount + adjustment + liens + writeoff + refund + transfer
+    ELSE amount_trans_billed + amount_paid + fees + cleanriver_discount + rct_discount + linc_discount + discount + adjustment + liens + writeoff + refund + transfer
   END
 ) OVER (PARTITION BY tu_id ORDER BY start_date ASC) AS running_owed
 FROM numbered_payments

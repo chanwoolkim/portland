@@ -1,21 +1,20 @@
-CREATE OR REPLACE TABLE `servus-291816.portland_working.billed_paid` AS
 WITH minimum_start AS (
   SELECT 
-    account_number, 
+    account_id, 
     MIN(start_date) AS first_start_date
-  FROM `servus-291816.portland_working.billed`
-  GROUP BY account_number
+  FROM billed
+  GROUP BY account_id
 ),
 ordered_bill AS (
   SELECT
     *,
     amount_due AS amount_billed,
-    ROW_NUMBER() OVER (PARTITION BY account_number ORDER BY start_date DESC) AS bill_num
-  FROM `servus-291816.portland_working.billed`
+    ROW_NUMBER() OVER (PARTITION BY account_id ORDER BY start_date DESC) AS bill_num
+  FROM billed
 ),
 payment_between_dates AS (
   SELECT
-    bill.account_number,
+    bill.account_id,
     bill.type_code,
     bill.cycle_code,
     bill.start_date,
@@ -35,19 +34,20 @@ payment_between_dates AS (
     COALESCE(SUM(CASE WHEN transaction.transaction_category = 'rct_discount' THEN transaction.amount ELSE 0 END), 0) AS rct_discount,
     COALESCE(SUM(CASE WHEN transaction.transaction_category = 'linc_discount' THEN transaction.amount ELSE 0 END), 0) AS linc_discount,
     COALESCE(SUM(CASE WHEN transaction.transaction_category = 'discount' THEN transaction.amount ELSE 0 END), 0) AS discount,
+    COALESCE(SUM(CASE WHEN transaction.transaction_category = 'adjustment' THEN transaction.amount ELSE 0 END), 0) AS adjustment,
     COALESCE(SUM(CASE WHEN transaction.transaction_category = 'liens' THEN transaction.amount ELSE 0 END), 0) AS liens,
     COALESCE(SUM(CASE WHEN transaction.transaction_category = 'writeoff' THEN transaction.amount ELSE 0 END), 0) AS writeoff,
     COALESCE(SUM(CASE WHEN transaction.transaction_category = 'refund' THEN transaction.amount ELSE 0 END), 0) AS refund,
     COALESCE(SUM(CASE WHEN transaction.transaction_category = 'transfer' THEN transaction.amount ELSE 0 END), 0) AS transfer
   FROM ordered_bill AS bill
   JOIN minimum_start
-    ON minimum_start.account_number = bill.account_number
-  LEFT JOIN `servus-291816.portland_working.transaction` AS transaction
-    ON transaction.account_number = bill.account_number
-    AND transaction.transaction_date < bill.next_bill_date
+    ON minimum_start.account_id = bill.account_id
+  LEFT JOIN transaction
+    ON transaction.account_id = bill.account_id
+  WHERE transaction.transaction_date < bill.next_bill_date
     AND (bill.start_date = minimum_start.first_start_date OR transaction.transaction_date >= bill.bill_date)
   GROUP BY
-    bill.account_number,
+    bill.account_id,
     bill.type_code,
     bill.cycle_code,
     bill.start_date,
@@ -64,7 +64,7 @@ payment_between_dates AS (
 ),
 numbered_payments AS (
   SELECT 
-    payment_between_dates.account_number,
+    payment_between_dates.account_id,
     payment_between_dates.type_code,
     payment_between_dates.cycle_code,
     payment_between_dates.start_date, 
@@ -83,15 +83,16 @@ numbered_payments AS (
     payment_between_dates.rct_discount,
     payment_between_dates.linc_discount,
     payment_between_dates.discount,
+    payment_between_dates.adjustment,
     payment_between_dates.liens,
     payment_between_dates.writeoff,
     payment_between_dates.refund,
     payment_between_dates.transfer,
-    ROW_NUMBER() OVER (PARTITION BY payment_between_dates.account_number ORDER BY payment_between_dates.start_date ASC) AS row_num
+    ROW_NUMBER() OVER (PARTITION BY payment_between_dates.account_id ORDER BY payment_between_dates.start_date ASC) AS row_num
   FROM payment_between_dates
 )
 SELECT 
-account_number,
+account_id,
 type_code,
 cycle_code,
 start_date, 
@@ -110,6 +111,7 @@ cleanriver_discount,
 rct_discount,
 linc_discount,
 discount,
+adjustment,
 liens,
 writeoff,
 refund,
@@ -117,9 +119,9 @@ transfer,
 SUM(
   CASE 
     WHEN row_num = 1 
-    THEN previous_unpaid_amount + amount_trans_billed + amount_paid + fees + cleanriver_discount + rct_discount + linc_discount + discount + liens + writeoff + refund + transfer
-    ELSE amount_trans_billed + amount_paid + fees + cleanriver_discount + rct_discount + linc_discount + discount + liens + writeoff + refund + transfer
+    THEN previous_unpaid_amount + amount_trans_billed + amount_paid + fees + cleanriver_discount + rct_discount + linc_discount + discount + adjustment + liens + writeoff + refund + transfer
+    ELSE amount_trans_billed + amount_paid + fees + cleanriver_discount + rct_discount + linc_discount + discount + adjustment + liens + writeoff + refund + transfer
   END
-) OVER (PARTITION BY account_number ORDER BY start_date ASC) AS running_owed
+) OVER (PARTITION BY account_id ORDER BY start_date ASC) AS running_owed
 FROM numbered_payments
-ORDER BY account_number, bill_date;
+ORDER BY account_id, bill_date;

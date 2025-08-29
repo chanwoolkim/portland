@@ -32,24 +32,15 @@ source(paste0(code_dir, "/utilities/preliminary.R"))
 # Load Data
 #---------+---------+---------+---------+---------+---------+
 # Full sample of everyone
-load(paste0(working_data_dir, "/estimation_dataset_all.RData"))
+load(paste0(working_data_dir, "/transunion/analysis/estimation_dataset_all.RData"))
 
 # RCT participants only
-load(paste0(working_data_dir, "/estimation_dataset.RData"))
+load(paste0(working_data_dir, "/transunion/analysis/estimation_dataset.RData"))
 
 
 #---------+---------+---------+---------+---------+---------+
 # Assemble Estimation Sample
 #---------+---------+---------+---------+---------+---------+
-# Extract income quartile from the full sample
-aspire_income_quartile <- estimation_dataset_all %>%
-  filter(t==0) %>%
-  select(id, aspire_income, bill_date) %>%
-  arrange(id, bill_date) %>%
-  distinct(id, aspire_income) %>%
-  mutate(income_quartile=ntile(aspire_income, 4)) %>%
-  select(id, income_quartile)
-
 # Only select relevant sample
 estimation_dataset <- estimation_dataset %>%
   arrange(id, bill_date) %>%
@@ -94,8 +85,7 @@ estimation_dataset <- estimation_dataset %>%
          cq=factor(cq, levels=c("Sub-Prime",
                                 "Near-Prime",
                                 "Prime",
-                                "Super-Prime"))) %>%
-  left_join(aspire_income_quartile, by=c("id"))
+                                "Super-Prime")))
 
 # Information (t==-1)
 info_treat_data <- estimation_dataset %>%

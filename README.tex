@@ -404,4 +404,62 @@ The table below lists the variables in the final estimation panel dataset:
 \end{tabular}}
 \end{table}
 
+
+\pagebreak
+
+\subsection*{Resulting Panel Data}
+
+The table below lists the variables in the final estimation panel dataset: 
+\begin{table}[H]
+\centering
+\caption{Variable List in \texttt{estimation\_dataset.RData}}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{llll}
+\toprule 
+\midrule
+\multicolumn{1}{c}{Variable Name} & \multicolumn{1}{c}{Description} & \multicolumn{1}{c}{Type} & \multicolumn{1}{c}{Note} \\
+\midrule
+\texttt{id} & Household ID & numeric & Scrambled from SERVUS \\
+\texttt{bill\_date} & Bill issue date & date & - \\
+\texttt{due\_date} & Bill due date & date & - \\
+\texttt{t} & Relative time from RCT bill & numeric & RCT bill $=0$ \\
+\texttt{B\_t} & Current bill amount & numeric & - \\
+\texttt{D\_t} & Unpaid debt & numeric & - \\
+\texttt{F\_t} & Fees & numeric & - \\
+\texttt{O\_t} & Total amount due & numeric & - \\
+\texttt{E\_t} & Total payment & numeric & - \\
+\texttt{lag\_w\_t} & Water use (in ccf) & numeric & - \\
+\texttt{discount\_grid} & Discount cell assignment & numeric & 0-80\% (in 10\% increments) \\
+\texttt{fa\_type} & Financial assistance at randomization & character & ``LINC'' Tier1 (moderate), Tier2 (severe) \\
+\texttt{delinquent\_at\_randomization} & Delinquency status at randomization & character & Delinquent, Not delinquent \\
+\texttt{has\_environment\_discount} & Received environmental discount & logical & ``CLEANRIVER'' \\
+\texttt{shutoff\_date} & Water shutoff date & date & Action took place between bills \\
+\texttt{reconnect\_date} & Water reconnect date & date & Action took place between bills \\
+\texttt{account\_status} & Customer account status & character & - \\
+\texttt{ufh} & Below UFH flag & logical & Based on Aspire income \\
+\texttt{fa\_eligible} & Eligible for financial assistance & logical & Based on Aspire income/household size \\
+\texttt{below\_median\_income} & Income below median & logical & Based on Aspire income \\
+\texttt{payment\_plan} & Enrolled in payment plan & logical & - \\
+\texttt{monthly\_payment} & On monthly installment billing & logical & - \\
+\texttt{linc\_tier\_type\_at\_bill} & Financial assistance applied on the bill & character & ``LINC'' Tier1 (moderate), Tier2 (severe) \\
+\texttt{is\_honored\_citizen} & Flag for honored citizen status & logical & Seniors or disabled \\
+\texttt{is\_rebill} & Is bill a reissue & logical & - \\
+\texttt{first\_bill} & Bill was the first bill in the system & logical & - \\
+\texttt{exit\_reason} & Reason for account exit & character & PWB-inputted reasons \\
+\texttt{cycle\_code} & Billing cycle code & numeric & - \\
+\texttt{state\_id} & State FIPS code & numeric & - \\
+\texttt{county\_id} & County FIPS code & character & - \\
+\texttt{tract\_id} & Census tract & character & - \\
+\texttt{block\_group\_id} & Census block group & numeric & - \\
+\texttt{service\_water} & Water service recipient & logical & - \\
+\texttt{service\_sewer} & Sewer service recipient & logical & - \\
+\texttt{service\_storm} & Stormwater service recipient & logical & - \\
+\texttt{rct\_discount} & RCT discount amount & numeric & - \\
+\texttt{cleanriver\_discount} & Environmental discount amount & numeric & ``CLEANRIVER'' \\
+\texttt{linc\_discount} & Financial assistance discount amount & numeric & ``LINC'' \\
+\texttt{crisis\_voucher} & Crisis voucher discount amount & numeric & - \\
+\midrule
+\end{tabular}}
+\end{table}
+
 \end{document}

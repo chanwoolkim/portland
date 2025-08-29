@@ -1,16 +1,78 @@
-# Debt decomposition ####
-code_info <- read_csv(paste0(working_data_dir, "/servus_query/code_info.csv"))
-income_credit <- read_csv(paste0(working_data_dir, "/servus_query/income_credit.csv"))
-transaction_aggregate <- read_csv(paste0(working_data_dir, "/servus_query/2024q4_financial/transaction_aggregate.csv"))
-payment_plan_aggregate <- read_csv(paste0(working_data_dir, "/servus_query/2024q4_financial/payment_plan_aggregate.csv"))
-collection_aggregate <- read_csv(paste0(working_data_dir, "/servus_query/2024q4_financial/collection_aggregate.csv"))
-final_aggregate <- read_csv(paste0(working_data_dir, "/servus_query/2024q4_financial/final_aggregate.csv"))
-account_count <- read_csv(paste0(working_data_dir, "/servus_query/2024q4_financial/account_count.csv"))
+#=========================================================================#
+# bill_breakdown_table_financial.R
+# 
+# Breakdown of total billed amount by income and credit quartiles (in 2024Q4)
+# - Water Bills
+#
+# July 10, 2025
+#=========================================================================#
 
-income_credit <- income_credit %>%
-  filter(year==2024)
+#---------+---------+---------+---------+---------+---------+
+# Helper Functions
+#---------+---------+---------+---------+---------+---------+
+default_zero <- function(df) {
+  if (!("liens" %in% names(df))) df$liens <- 0
+  return(df)
+}
 
-ufh_threshold <- round(as.numeric(quantile(income_credit$etie, 0.15)*1.037*1000), 0)
+fill_zeros <- function(df, cols) {
+  df %>% mutate(across(all_of(cols), ~ ifelse(is.na(.), 0, .)))
+}
+
+accumulate_debt <- function(df, group_var) {
+  for (g in unique(df[[group_var]])) {
+    idx <- which(df[[group_var]] == g)
+    for (i in seq_along(idx)) {
+      if (i == 1) {
+        carryover <- 0
+      } else {
+        prev <- idx[i - 1]
+        carryover <- df$leftover_debt[prev] - df$final_leftover[prev] - df$liens[prev]
+      }
+      cur <- idx[i]
+      df$leftover_debt[cur] <- df$bill[cur] + carryover -
+        df$discount[cur] - df$cleanriver_discount[cur] -
+        df$final_discount[cur] - df$payment[cur] +
+        df$total_outstanding[cur]
+    }
+  }
+  return(df)
+}
+
+export_stat_tex <- function(value, label, unit = "million", percent = FALSE) {
+  out <- if (percent) paste0(value, "\\%") else paste0("\\$", value, " ", unit)
+  export_tex(out, label)
+}
+
+summarize_by_group <- function(df, group_vars, sum_vars) {
+  df %>% 
+    group_by(across(all_of(group_vars))) %>% 
+    summarise(across(all_of(sum_vars), ~ sum(.x, na.rm = TRUE)), .groups = "drop") %>% 
+    arrange(across(all_of(group_vars)))
+}
+
+
+#---------+---------+---------+---------+---------+---------+
+# Load Data
+#---------+---------+---------+---------+---------+---------+
+load(paste0(working_data_dir, "/transunion/analysis/estimation_dataset_all.RData"))
+code_info <- read_csv(paste0(working_data_dir, "/transunion/analysis/code_info.csv"))
+transaction_aggregate <- read_csv(paste0(working_data_dir, "/transunion/analysis/2024q4_financial/transaction_aggregate.csv"))
+payment_plan_aggregate <- read_csv(paste0(working_data_dir, "/transunion/analysis/2024q4_financial/payment_plan_aggregate.csv"))
+collection_aggregate <- read_csv(paste0(working_data_dir, "/transunion/analysis/2024q4_financial/collection_aggregate.csv"))
+final_aggregate <- read_csv(paste0(working_data_dir, "/transunion/analysis/2024q4_financial/final_aggregate.csv"))
+account_count <- read_csv(paste0(working_data_dir, "/transunion/analysis/2024q4_financial/account_count.csv"))
+
+income_credit <- estimation_dataset_all %>%
+  arrange(id, bill_date) %>%
+  group_by(id) %>%
+  fill(tu_income, .direction="downup") %>%
+  ungroup() %>%
+  filter(year(bill_date)==2024) %>%
+  select(id, tu_income) %>%
+  distinct()
+
+ufh_threshold <- round(as.numeric(quantile(income_credit$tu_income, 0.15, na.rm=TRUE)*1.037*1000), 0)
 ufh_threshold <- paste0("\\$",
                         prettyNum(ufh_threshold, big.mark=",", scientific=FALSE))
 export_tex(ufh_threshold, "ufh_threshold")
@@ -101,6 +163,11 @@ transaction_aggregate_summary_median <- transaction_aggregate_summary_median %>%
 
 transaction_aggregate_summary_median <- na.fill(transaction_aggregate_summary_median, 0) %>%
   as.data.frame()
+
+# Non-categorised discounts are rare
+if (!("discount" %in% names(transaction_aggregate_summary_median))) {
+  transaction_aggregate_summary_median$discount <- 0
+}
 
 transaction_aggregate_summary_median <- transaction_aggregate_summary_median %>%
   mutate(bill=bill+fees+transfer+final_bill,
@@ -218,6 +285,10 @@ transaction_aggregate_summary <- transaction_aggregate_summary %>%
 
 transaction_aggregate_summary <- na.fill(transaction_aggregate_summary, 0) %>%
   as.data.frame()
+
+if (!("discount" %in% names(transaction_aggregate_summary))) {
+  transaction_aggregate_summary$discount <- 0
+}
 
 transaction_aggregate_summary <- transaction_aggregate_summary %>%
   mutate(bill=bill+fees+transfer+final_bill,

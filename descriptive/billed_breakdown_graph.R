@@ -1,24 +1,26 @@
-# Preliminary ####
-cpi <- read_csv(paste0(auxiliary_data_dir, "/CPIAUCSL.csv")) %>%
-  transmute(year=year(observation_date),
-            quarter=quarter(observation_date),
-            cpi=CPIAUCSL/CPIAUCSL[1])
+#=========================================================================#
+# bill_breakdown_graph.R
+# 
+# Breakdown of total billed amount (in a time series)
+# - Water Bills
+#
+# July 10, 2025
+#=========================================================================#
 
-cpi_year <- cpi %>%
-  group_by(year) %>%
-  summarise(cpi=mean(cpi)) %>%
-  ungroup()
-
-# Revenue decomposition ####
+#---------+---------+---------+---------+---------+---------+
+# Function to Generate Revenue Graphs
+#---------+---------+---------+---------+---------+---------+
 generate_revenue_graphs <- function(covid_location,
                                     rate_change_location,
                                     breakdown_location,
                                     real_terms=TRUE,
                                     filename) {
+  # Liens are very rare
   if (!("liens" %in% names(final_aggregate))) {
     final_aggregate$liens <- 0
   }
   
+  # Aggregate by year and quarter
   transaction_aggregate_summary <- transaction_aggregate %>% 
     left_join(code_info %>% select(transaction_type, category),
               by="transaction_type") %>%
@@ -68,6 +70,11 @@ generate_revenue_graphs <- function(covid_location,
   transaction_aggregate_summary <- na.fill(transaction_aggregate_summary, 0) %>%
     as.data.frame()
   
+  # Non-categorised discounts are rare
+  if (!("discount" %in% names(transaction_aggregate_summary))) {
+    transaction_aggregate_summary$discount <- 0
+  }
+  
   transaction_aggregate_summary <- transaction_aggregate_summary %>%
     mutate(bill=bill+fees+transfer+final_bill,
            discount=-discount-linc_discount-rct_discount,
@@ -96,6 +103,7 @@ generate_revenue_graphs <- function(covid_location,
     mutate(payment=payment+collection_paid,
            total_delayed=total_delayed+collection_amount-collection_paid+cumsum(liens))
   
+  # Prepare plot data
   transaction_aggregate_summary_plot <- transaction_aggregate_summary %>% 
     mutate(leftover_debt=leftover_debt/1000000,
            payment=payment/1000000,
@@ -141,6 +149,7 @@ generate_revenue_graphs <- function(covid_location,
       mutate_at(vars(-year), ~.x/cpi)
   }
   
+  # Generate plot
   gg <- ggplot(data=transaction_aggregate_summary_plot,
                aes(x=date, y=revenue)) +
     geom_path(colour="black", size=1) + 
@@ -265,12 +274,31 @@ generate_revenue_graphs <- function(covid_location,
   return(transaction_aggregate_summary_plot)
 }
 
-code_info <- read_csv(paste0(working_data_dir, "/servus_query/code_info.csv"))
-account_count <- read_csv(paste0(working_data_dir, "/servus_query/account_count.csv"))
-transaction_aggregate <- read_csv(paste0(working_data_dir, "/servus_query/transaction_aggregate.csv"))
-payment_plan_aggregate <- read_csv(paste0(working_data_dir, "/servus_query/payment_plan_aggregate.csv"))
-collection_aggregate <- read_csv(paste0(working_data_dir, "/servus_query/collection_aggregate.csv"))
-final_aggregate <- read_csv(paste0(working_data_dir, "/servus_query/final_aggregate.csv"))
+
+#---------+---------+---------+---------+---------+---------+
+# Load Data
+#---------+---------+---------+---------+---------+---------+
+# CPI
+cpi <- read_csv(paste0(auxiliary_data_dir, "/CPIAUCSL.csv")) %>%
+  transmute(year=year(observation_date),
+            quarter=quarter(observation_date),
+            cpi=CPIAUCSL/CPIAUCSL[1])
+
+cpi_year <- cpi %>%
+  group_by(year) %>%
+  summarise(cpi=mean(cpi)) %>%
+  ungroup()
+
+
+#---------+---------+---------+---------+---------+---------+
+# Aggregated Revenue (From TransUnion-Randomized Sample)
+#---------+---------+---------+---------+---------+---------+
+code_info <- read_csv(paste0(working_data_dir, "/transunion/analysis/code_info.csv"))
+account_count <- read_csv(paste0(working_data_dir, "/transunion/analysis/account_count.csv"))
+transaction_aggregate <- read_csv(paste0(working_data_dir, "/transunion/analysis/transaction_aggregate.csv"))
+payment_plan_aggregate <- read_csv(paste0(working_data_dir, "/transunion/analysis/payment_plan_aggregate.csv"))
+collection_aggregate <- read_csv(paste0(working_data_dir, "/transunion/analysis/collection_aggregate.csv"))
+final_aggregate <- read_csv(paste0(working_data_dir, "/transunion/analysis/final_aggregate.csv"))
 
 all_summary <- generate_revenue_graphs(-5, 90, 12.5, real_terms=FALSE, "bill_breakdown_all")
 all_real_summary <- generate_revenue_graphs(-5, 80, 12.5, real_terms=TRUE, "bill_breakdown_real_all")
@@ -301,16 +329,18 @@ for (yy in c(2019, 2024)) {
              paste0("average_real_unpaid_", yy))
 }
 
+# Real terms
 real_payment_change <- round((average_payment_2024/average_payment_2019-1)*100, 1)
 export_tex(paste0(real_payment_change, "\\%"), "real_payment_change_2019_2024")
 
 real_unpaid_change <- round(average_unpaid_2024/average_unpaid_2019-1, 1)*100
 export_tex(paste0(real_unpaid_change, "\\%"), "real_unpaid_change_2019_2024")
 
-account_count <- read_csv(paste0(working_data_dir, "/servus_query/smart_discount/account_count.csv"))
-transaction_aggregate <- read_csv(paste0(working_data_dir, "/servus_query/smart_discount/transaction_aggregate.csv"))
-payment_plan_aggregate <- read_csv(paste0(working_data_dir, "/servus_query/smart_discount/payment_plan_aggregate.csv"))
-collection_aggregate <- read_csv(paste0(working_data_dir, "/servus_query/smart_discount/collection_aggregate.csv"))
-final_aggregate <- read_csv(paste0(working_data_dir, "/servus_query/smart_discount/final_aggregate.csv"))
+# Only RCT participants
+account_count <- read_csv(paste0(working_data_dir, "/transunion/analysis/smart_discount/account_count.csv"))
+transaction_aggregate <- read_csv(paste0(working_data_dir, "/transunion/analysis/smart_discount/transaction_aggregate.csv"))
+payment_plan_aggregate <- read_csv(paste0(working_data_dir, "/transunion/analysis/smart_discount/payment_plan_aggregate.csv"))
+collection_aggregate <- read_csv(paste0(working_data_dir, "/transunion/analysis/smart_discount/collection_aggregate.csv"))
+final_aggregate <- read_csv(paste0(working_data_dir, "/transunion/analysis/smart_discount/final_aggregate.csv"))
 
 sdp_summary <- generate_revenue_graphs(-1.5, 15, 2.15, real_terms=FALSE, "bill_breakdown_sdp")

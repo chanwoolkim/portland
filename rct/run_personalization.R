@@ -1,18 +1,18 @@
 #=========================================================================#
-# personalization.R
-# 
-# - Load PWB data and Aspire Data
-# - 
-# - Personalization algorithm for discounts
 #
-# June 18, 2025
-#  -- this version July 30, 2025
+#                 Run the WLB using parallelization
+#
+#
+#       by JP Dube, 8-28-2025
+#
 #=========================================================================#
 
 
 #---------+---------+---------+---------+---------+---------+
-# Preliminaries
+# PRELIMINARIES
 #---------+---------+---------+---------+---------+---------+
+set.seed(1)
+
 if (Sys.info()[4]=="JDUBE-LT3"){
   wd = "C:/Users/jdube/Box/PWB"
 } else if (Sys.info()[4]=="jdube01"){
@@ -32,163 +32,21 @@ library(glmnet)
 library(ggplot2)
 library(ggridges)
 
-# Load Utilities
-source(paste0(code_dir, "/utilities/preliminary.R"))
-
-
-#---------+---------+---------+---------+---------+---------+
-# Load Data
-# RCT participants only
-#---------+---------+---------+---------+---------+---------+
-load(paste0(working_data_dir, "/servus/analysis/estimation_dataset.RData"))
-aspire_codebook <- read_csv(paste0(working_data_dir, "/servus/pre-processed/aspire_north_codebook.csv"))
-
-
-#---------+---------+---------+---------+---------+---------+
-# Assemble Estimation Sample
-#---------+---------+---------+---------+---------+---------+
-n_current <- estimation_dataset %>% filter(t==0) %>% distinct(id) %>% nrow()
-print(paste0("All available accounts net of those that got final bill during information treatment: ",
-             as.character(prettyNum(n_current, big.mark=",")),
-             " (", round(n_current/20000, 2)*100, "%)"))
-
-# Only select relevant sample
-estimation_dataset <- estimation_dataset %>%
-  filter(# PWB-officially recorded "exits" from RCT
-    is.na(exit_reason),
-    # Still have a handful of accounts with final bills
-    account_status!="FINAL",
-    !is_rebill,
-    !first_bill,
-    # Severe FAs received 50-80% discount
-    (fa_type != "Tier2" | is.na(fa_type))) %>%
-  mutate(B_t=ifelse(B_t<0, 0, B_t),
-         lag_w_t=ifelse(lag_w_t<0, lag_w_t, lag_w_t),
-         # Bill defined as how much they owed (for RCT, net of previous debt)
-         bill=ifelse(t==0, O_t-D_t, O_t),
-         payment=-E_t,
-         pay=payment<bill,
-         # Top-code payshare at 1
-         payshare=ifelse(O_t==0, NaN, pmin(pmax(payment/bill, 0), 1)),
-         deadbeat=case_when(
-           ufh ~ "Below UFH",
-           !ufh & below_median_income ~ "Below Median Income",
-           !ufh & !below_median_income ~ "Above Median Income"),
-         delinquent=ifelse(D_t>0, "Have Unpaid Debt", "No Unpaid Debt"),
-         iq=case_when(
-           ufh ~ "Below UFH",
-           !ufh & fa_eligible ~ "UFH to Means-Tested Cap",
-           !ufh & !fa_eligible ~ "Above Means-Tested Cap")) %>%
-  reapply_labels(original_df=estimation_dataset)
-
-# Label new variables
-label(estimation_dataset$bill) <- 'Amount owed on bill (net of previous debt)'
-label(estimation_dataset$payment) <- 'Amount paid on bill'
-label(estimation_dataset$pay) <- 'Did not pay the full bill'
-label(estimation_dataset$payshare) <- 'Share of bill paid (top-coded at 1)'
-label(estimation_dataset$deadbeat) <- 'Income category (UFH and median)'
-label(estimation_dataset$delinquent) <- 'Had unpaid debt on bill'
-label(estimation_dataset$iq) <- 'Income category (UFH and means-tested cap)'
-
-# Information (t==-1)
-info_treat_data <- estimation_dataset %>% filter(t==-1)
-
-# Discount (t==0)
-dt <- estimation_dataset %>% filter(t==0)
-
-# Filter out small number of outlier payments
-cuts = quantile(dt$payment,prob=c(.005,.995))
-keeper = dt$payment>=cuts[1] & dt$payment<=cuts[2]
-print(paste0("Number of dropped outlier payments: ", prettyNum(sum(keeper),",")))
-dt = dt[keeper,]
-
-n_analysis <- dt %>% filter(t==0) %>% distinct(id) %>% nrow()
-print(paste0("Analysis sample size for discount treatment: ",
-             as.character(prettyNum(n_analysis, big.mark=",")),
-             " (", round(n_analysis/20000, 2)*100, "%)"))
+# Parallelization
+library(foreach)
+parallel::detectCores()
+n.cores <- parallel::detectCores() - 1
+#create the cluster
+my.cluster <- parallel::makeCluster(
+  n.cores, 
+  type = "PSOCK"
+)
+#register it to be used by %dopar%
+doParallel::registerDoParallel(cl = my.cluster)
 
 
 
-#---------+---------+---------+---------+---------+---------+
-# Merge Features with RCT and create variables
-#---------+---------+---------+---------+---------+---------+
-# Note: Quasi-Codebook
-# 1. Use "bill" to look at what customers perceived as "amount due"
-# 2. Use "payment" to look at what customers actually paid
-# "delinquent" and "delinquent_at_randomization" are different
-# - "delinquent" is having previous debt at the point of RCT bill
-# All Census features have the prefix "census_"
-# All Aspire North features have the prefix "aspire_"
-
-# Aspire data types
-aspire_variables <- aspire_codebook %>%
-  transmute(variable_name=paste0("aspire_", gsub("-", "", str_to_lower(`Field Cards`))),
-            data_type) %>%
-  filter(variable_name %in% (colnames(estimation_dataset) %>% 
-                               str_subset("aspire_")))
-
-dt$income = dt$aspire_lu_inc_model_v6_amt
-dt$delinquent = dt$delinquent=="Have Unpaid Debt"
-
-## Income Quartile
-Iquartiles = quantile(dt$income,prob=c(.25,.5,.75),na.rm=T)
-dt$IQ = 1*(dt$income<Iquartiles[1]) + 2*(dt$income>=Iquartiles[1] & dt$income<Iquartiles[2]) + 3*(dt$income>=Iquartiles[2] & dt$income<Iquartiles[3]) + 4*(dt$income>=Iquartiles[3])
-dt$IQfactor = factor(dt$IQ,levels=sort(unique(dt$IQ)),labels=paste("IQ",as.character(sort(unique(dt$IQ))),sep=""))
-
-## Create Factor Variable for test cells
-dt$cell = factor(dt$discount_grid,levels=sort(unique(dt$discount_grid)),labels=paste(as.character(sort(unique(dt$discount_grid))),"%",sep=""))
-
-## De-mean specific variables (for interpretation in OLS regs)
-dt$Dincome = dt$income/1000 - mean(dt$income/1000,na.rm=T)
-dt$Ddelinq = dt$delinquent - mean(dt$delinquent)
-dt$Dunemp = dt$census_unemployment_rate_in_labor_force - mean(dt$census_unemployment_rate_in_labor_force,na.rm=T)
-dt$Dblack = dt$census_percent_of_population_includes_black - mean(dt$census_percent_of_population_includes_black,na.rm=T)
-dt$Dlagwt = dt$lag_w_t - mean(dt$lag_w_t,na.rm=T)
-
-
-#---------+---------+
-# Filter Data
-#  And save file for analysis
-#---------+---------+
-# Remove Aspire variables with less than 90% coverage
-aspire_prevalence <- aspire_variables %>%
-  filter(variable_name %in% colnames(dt)) %>%
-  mutate(share_nonmissing=colMeans(!is.na(dt[, variable_name]))) %>%
-  filter(share_nonmissing>0.9)
-
-dt <- dt %>%
-  select(-one_of(aspire_variables$variable_name[!aspire_variables$variable_name %in% aspire_prevalence$variable_name]))
-
-# For Aspire, only use categorical and numerical variables
-namelist = colnames(dt)
-census_namelist = namelist %>% str_subset("census")
-aspire_namelist = intersect(namelist %>% str_subset("aspire"),
-                            aspire_variables %>% 
-                              filter(data_type %in% c("categorical", "numerical", "ordinal")) %>%
-                              pull(variable_name))
-
-# For Aspire, turn categorical and ordinal variables into factors for ML models
-aspire_categorical_namelist = intersect(namelist %>% str_subset("aspire"),
-                                        aspire_variables %>% 
-                                          filter(data_type %in% c("categorical", "ordinal")) %>%
-                                          pull(variable_name))
-dt[, aspire_categorical_namelist] <- lapply(dt[, aspire_categorical_namelist], 
-                                            function(x) {factor(x)})
-dt <- dt %>%
-  reapply_labels(original_df=estimation_dataset)
-
-label(dt$IQ) <- 'Income quartile'
-label(dt$IQfactor) <- 'Income quartile'
-label(dt$cell) <- 'Discount cell'
-label(dt$Dincome) <- 'De-meaned: income'
-label(dt$Ddelinq) <- 'De-meaned: had unpaid debt on bill'
-label(dt$Dunemp) <- 'De-meaned: census unemployment rate in labor force'
-label(dt$Dblack) <- 'De-meaned: census percent of population black'
-label(dt$Dlagwt) <- 'De-meaned: water use (in ccf)'
-
-save(dt,census_namelist,aspire_namelist,
-     file=paste0(working_data_dir, "/servus/analysis/personalization_dataset.RData"))
-
+load(file=paste0(working_data_dir, "/servus/analysis/personalization_dataset.RData"))
 
 #---------+---------+---------+---------+
 # Variables for Analysis: 
@@ -208,35 +66,6 @@ treatment = model.matrix(~dt$cell-1)
 
 featurelist = c("lag_w_t","income","delinquent",census_namelist, aspire_namelist)
 features = dt[,featurelist]
-
-
-#---------+---------+---------+---------+
-# Messing around with manual models
-#---------+---------+---------+---------+
-#form1 = ~cell*IQfactor+cell*delinquent-1
-#mm1 = model.matrix(form1,data=dt[keeper,])
-#form2 = ~cell*delinquent-1
-#mm2 = (model.matrix(form2,data=dt[keeper,]))
-#form3 = ~cell*income+cell*delinquent-1
-#mm3 = (model.matrix(form3,data=dt[keeper,]))
-#form4 = ~cell*Dincome+cell*Ddelinq-1
-#mm4 = (model.matrix(form4,data=dt[keeper,]))
-#form5 = ~cell*Dincome+cell+cell*Ddelinq+cell*Dunemp+cell*Dblack-1
-#mm5 = (model.matrix(form5,data=dt[keeper,]))
-
-#ind = !is.na(dt$income)
-#summary(lm(y~dt$cell[keeper]-1))
-#summary(lm(y~mm1-1))
-#summary(lm(y~mm2-1))
-#summary(lm(y~mm3-1))
-#summary(lm(y~mm4-1))
-#summary(lm(y~mm5-1))
-
-
-### RUN SOME MANUAL MODELS WITH LASSO TO EXPLORE
-#out5 = cv.glmnet(mm5,dt$payment[keeper],family='gaussian',penalty.factor = (1:ncol(mm5)<10),nfold=5)
-#as.matrix(coef(out5))
-#gm.set = summary(coef(out5, s = "lambda.min"))$i
 
 
 #---------+---------+---------+---------+---------+---------+---------+
@@ -285,6 +114,9 @@ N <- nrow(mm)
 penalty <- rbind( matrix(0, 9, 1), matrix(1, K - 9,1))  # force glm to retain intercept and main effects of treatment arms
 NB=30
 N = nrow(mm)
+vars = colnames(mm)
+cells = vars[1:9]
+
 
 ###
 # initialize outputs
@@ -292,41 +124,66 @@ N = nrow(mm)
 gmRev.out=gmPayShare.out=gmPay.out=list()
 set.seed(2)
 
+
 ###
 # Bootstrap loop
 ###
+
+## (1) Revenue
 start = proc.time()
-for(bb in 1:NB)
-{
+gmRev.cfs <- foreach(
+  bb = 1:NB, 
+  .combine = 'cbind',
+  .packages = c("glmnet")
+) %dopar% {
   wts <- rexp(N)                                                                                              # Rubin's Dirichlet Weighting approach
-  gmRev.out[[bb]]     = cv.glmnet(mm,y,family='gaussian',penalty.factor = penalty,weights = wts) 	            # Run Cross Validated
-  #gmPayShare.out[[bb]]= cv.glmnet(mm,y1,family='gaussian',penalty.factor = penalty,weights = wts,maxit=1000) 	# Run Cross Validated
-  #gmPay.out[[bb]]     = cv.glmnet(mm,y2,family='binomial',penalty.factor = penalty,weights = wts,maxit=1000) 	# Run Cross Validated
-  cat("Bootstrap ",bb," completed.\n")
-  cat("Running time:",(proc.time()-start)[3],"seconds")
-  start = proc.time()
+  bdrawtemp     = cv.glmnet(mm,y,family='gaussian',penalty.factor = penalty,weights = wts) 	            # Run Cross Validated
+  gmRev.cfs = as.matrix(coef(bdrawtemp,s="lambda.min"))
 }
+cat("Running time for Revenue model: ",(proc.time()-start)[3],"seconds")
+
+outfile = paste(output_dir,"/gmcfs_Rev.Rdata",sep="")
+save(gmRev.cfs,vars,cells,file=outfile)
 
 
-###
-# Retain Coefficients based on Minimum Lambda
-###
-gmRev.cfs = gmPayShare.cfs = gmPay.cfs = matrix(0,nrow(coef(gmRev.out[[1]])),NB)
-for (rr in 1:NB) {
-  bb = as.matrix(coef(gmRev.out[[rr]],s="lambda.min"))
-  gmRev.cfs[,rr] = bb
-  #bb = as.matrix(coef(gmPayShare.out[[rr]],s="lambda.min"))
-  #gmPayShare.cfs[,rr] = bb
-  #bb = as.matrix(coef(gmPay.out[[rr]],s="lambda.min"))
-  #gmPay.cfs[,rr] = bb
+## (2) Payment Share
+start = proc.time()
+gmPayShare.cfs <- foreach(
+  bb = 1:NB, 
+  .combine = 'cbind',
+  .packages = c("glmnet")
+) %dopar% {
+  wts <- rexp(N)                                                                                              # Rubin's Dirichlet Weighting approach
+  bdrawtemp     = cv.glmnet(mm,y1,family='gaussian',penalty.factor = penalty,weights = wts) 	            # Run Cross Validated
+  gmPayShare.cfs = as.matrix(coef(bdrawtemp,s="lambda.min"))
 }
+cat("Running time for Pay Share: ",(proc.time()-start)[3],"seconds")
+
+outfile = paste(output_dir,"/gmcfs_PayShare.Rdata",sep="")
+save(gmPayShare.cfs,vars,cells,file=outfile)
+
+
+## (3) Pay Indicator
+start = proc.time()
+gmPay.cfs <- foreach(
+  bb = 1:NB, 
+  #  .combine = 'c',
+  .combine = 'cbind',
+  .packages = c("glmnet")
+) %dopar% {
+  wts <- rexp(N)                                                                                              # Rubin's Dirichlet Weighting approach
+  bdrawtemp     = cv.glmnet(mm,y2,family='gaussian',penalty.factor = penalty,weights = wts) 	            # Run Cross Validated
+  gmPay.cfs = as.matrix(coef(bdrawtemp,s="lambda.min"))
+}
+cat("Running time for Pay Indicator model: ",(proc.time()-start)[3],"seconds")
+
+outfile = paste(output_dir,"/gmcfs_Pay.Rdata",sep="")
+save(gmPay.cfs,vars,cells,file=outfile)
 
 
 ###
-# SAVE Coeffs (gm.cfs)
+# SAVE All Coeffs (gm.cfs)
 ###
-vars = colnames(mm)
-cells = vars[1:9]
 outfile = paste(output_dir,"/gmcfs.Rdata",sep="")
 save(gmRev.cfs,gmPayShare.cfs,gmPay.cfs,vars,cells,file=outfile)
 
@@ -439,7 +296,7 @@ summary(id$D_t[policy>1])
 # Description of who over-pays
 #---------+---------+---------+---------+---------+---------+---------+---------+
 # payment ($ and %)
-aggregate(payment~cell,data=id,FUN=mean)
+aggregate(dt$payment~cell,data=id,FUN=mean)
 aggregate((payment)/(B_t)*100~cell,data=id,FUN=mean)
 aggregate((payment)/(B_t+D_t)*100~cell,data=id,FUN=mean)
 

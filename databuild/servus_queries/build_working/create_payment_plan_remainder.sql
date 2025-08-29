@@ -1,4 +1,3 @@
-CREATE OR REPLACE TABLE `servus-291816.portland_working.payment_plan_remainder` AS
 WITH aggregated_data AS (
     SELECT 
         payment_plan_id,
@@ -6,8 +5,8 @@ WITH aggregated_data AS (
         EXTRACT(QUARTER FROM due_date) AS quarter,
         SUM(amount) AS total_amount,
         SUM(outstanding_amount) AS total_outstanding_amount
-    FROM `servus-291816.portland_working.payment_plan_transaction`
-    GROUP BY payment_plan_id, EXTRACT(YEAR FROM due_date), EXTRACT(QUARTER FROM due_date)
+    FROM payment_plan_transaction
+    GROUP BY payment_plan_id, year, quarter
 ),
 cumulative_data AS (
     SELECT 
@@ -41,7 +40,7 @@ modified_data AS (
 ),
 payment_plan_data AS (
     SELECT
-        account_number,
+        account_id,
         payment_plan_id,
         start_date,
         EXTRACT(YEAR FROM start_date) AS year,
@@ -51,11 +50,11 @@ payment_plan_data AS (
         EXTRACT(QUARTER FROM end_date) AS end_quarter,
         status_code,
         total_amount
-    FROM `servus-291816.portland_working.payment_plan`
+    FROM payment_plan
 )
 SELECT 
     m.*,
-    p.account_number,
+    p.account_id,
     p.status_code,
     p.start_date,
     p.end_date,

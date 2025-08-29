@@ -32,22 +32,38 @@ source(paste0(code_dir, "/utilities/preliminary.R"))
 # Load Data
 #---------+---------+---------+---------+---------+---------+
 # Full sample of everyone
-load(paste0(working_data_dir, "/estimation_dataset_all.RData"))
+load(paste0(working_data_dir, "/servus/analysis/estimation_dataset_all.RData"))
 
 # RCT participants only
-load(paste0(working_data_dir, "/estimation_dataset.RData"))
+load(paste0(working_data_dir, "/servus/analysis/estimation_dataset.RData"))
 
 
 #---------+---------+---------+---------+---------+---------+
 # Assemble Estimation Sample
 #---------+---------+---------+---------+---------+---------+
 # Extract income quartile from the full sample
-aspire_income_quartile <- estimation_dataset_all %>%
-  filter(t==0) %>%
-  select(id, aspire_income, bill_date) %>%
+estimation_dataset_all <- estimation_dataset_all %>%
+  mutate(income=aspire_income) %>%
+  select(-contains("aspire_")) %>%
   arrange(id, bill_date) %>%
-  distinct(id, aspire_income) %>%
-  mutate(income_quartile=ntile(aspire_income, 4)) %>%
+  group_by(id) %>%
+  fill(income, .direction="downup") %>%
+  ungroup()
+
+estimation_dataset <- estimation_dataset %>%
+  mutate(income=aspire_income) %>%
+  select(-contains("aspire_")) %>%
+  arrange(id, bill_date) %>%
+  group_by(id) %>%
+  fill(income, .direction="downup") %>%
+  ungroup()
+
+income_quartile <- estimation_dataset_all %>%
+  filter(t==0) %>%
+  select(id, income, bill_date) %>%
+  arrange(id, bill_date) %>%
+  distinct(id, income) %>%
+  mutate(income_quartile=ntile(income, 4)) %>%
   select(id, income_quartile)
 
 # Only choose regular bills (not final, rebill, or first)
@@ -55,7 +71,7 @@ estimation_dataset_all <- estimation_dataset_all %>%
   filter(!is_rebill,
          !first_bill) %>%
   mutate(fa=linc_discount<0) %>%
-  left_join(aspire_income_quartile, by=c("id")) %>%
+  left_join(income_quartile, by=c("id")) %>%
   arrange(id, bill_date) %>%
   group_by(id) %>%
   mutate(lead_account_status=lead(account_status)) %>%
@@ -69,8 +85,7 @@ estimation_dataset <- estimation_dataset %>%
          account_status!="FINAL",
          !is_rebill,
          !first_bill) %>%
-  left_join(aspire_income_quartile, by=c("id")) %>%
-  rename(aspire_income=aspire_lu_inc_model_v6_amt)
+  left_join(income_quartile, by=c("id"))
 
 # Only choose those who received the "next bill"
 # Only choose those who got "full service" (water, sewer, and stormwater)
@@ -85,8 +100,7 @@ threshold_data_all <- estimation_dataset_all %>%
          lag_w_t=ifelse(lag_w_t<0, lag_w_t, lag_w_t),
          next_bill_date=lead(bill_date)) %>%
   ungroup() %>%
-  filter(service_water, service_sewer, service_storm,
-         bill_date>="2024-12-12", bill_date<="2025-03-14",
+  filter(bill_date>="2024-12-12", bill_date<="2025-03-14",
          !id %in% estimation_dataset$id)
 
 threshold_data_count <- threshold_data_all %>%
@@ -159,8 +173,7 @@ threshold_data_pre <- estimation_dataset_all %>%
          B_t=ifelse(B_t<0, 0, B_t),
          lag_w_t=ifelse(lag_w_t<0, lag_w_t, lag_w_t)) %>%
   ungroup() %>%
-  filter(service_water, service_sewer, service_storm,
-         bill_date>="2024-01-01", bill_date<="2024-12-31",
+  filter(bill_date>="2024-01-01", bill_date<="2024-12-31",
          !monthly_payment) %>%
   mutate(bill=O_t)
 
@@ -172,8 +185,7 @@ threshold_data_covid <- estimation_dataset_all %>%
          B_t=ifelse(B_t<0, 0, B_t),
          lag_w_t=ifelse(lag_w_t<0, lag_w_t, lag_w_t)) %>%
   ungroup() %>%
-  filter(service_water, service_sewer, service_storm,
-         bill_date>="2021-01-01", bill_date<="2021-12-31",
+  filter(bill_date>="2021-01-01", bill_date<="2021-12-31",
          !monthly_payment) %>%
   mutate(bill=O_t)
 
@@ -185,8 +197,7 @@ threshold_data_precovid <- estimation_dataset_all %>%
          B_t=ifelse(B_t<0, 0, B_t),
          lag_w_t=ifelse(lag_w_t<0, lag_w_t, lag_w_t)) %>%
   ungroup() %>%
-  filter(service_water, service_sewer, service_storm,
-         bill_date>="2019-01-01", bill_date<="2019-12-31",
+  filter(bill_date>="2019-01-01", bill_date<="2019-12-31",
          !monthly_payment) %>%
   mutate(bill=O_t)
 
@@ -201,8 +212,7 @@ threshold_data_rct <- estimation_dataset %>%
          B_t=ifelse(B_t<0, 0, B_t),
          lag_w_t=ifelse(lag_w_t<0, lag_w_t, lag_w_t)) %>%
   ungroup() %>%
-  filter(service_water, service_sewer, service_storm,
-         t==0, 
+  filter(t==0, 
          D_t>=0, !monthly_payment, is.na(payment_plan)) %>%
   mutate(bill=O_t-D_t)
 
@@ -227,6 +237,7 @@ for (df in c("threshold_data_all",
                   fa=linc_discount<0,
                   payshare=-E_t/bill,
                   payshare=ifelse(bill<=0, NA, payshare),
+                  payshare=ifelse(payshare<0, 0, payshare),
                   payshare=ifelse(payshare>1, 1, payshare),
                   payshare=round(payshare, 2),
                   payment=-E_t,
@@ -259,7 +270,7 @@ threshold_data_rct_control <- threshold_data_rct %>%
 outcome_variables <- c("payment", "delinquent", "payshare",
                        "paid_something", "paid_nothing",
                        "shutoff",
-                       "lag_w_t", "aspire_income")
+                       "lag_w_t", "income")
 
 outcome_labels <- c("Revenue", 
                     "Probability of Delinquency",

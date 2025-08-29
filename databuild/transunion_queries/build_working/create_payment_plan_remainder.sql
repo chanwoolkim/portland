@@ -1,12 +1,12 @@
 WITH aggregated_data AS (
     SELECT 
         payment_plan_id,
-        EXTRACT(YEAR FROM due_date) AS year,
-        EXTRACT(QUARTER FROM due_date) AS quarter,
+        EXTRACT(YEAR FROM CAST(due_date AS DATE)) AS year,
+        EXTRACT(QUARTER FROM CAST(due_date AS DATE)) AS quarter,
         SUM(amount) AS total_amount,
         SUM(outstanding_amount) AS total_outstanding_amount
     FROM payment_plan_transaction
-    GROUP BY payment_plan_id, EXTRACT(YEAR FROM due_date), EXTRACT(QUARTER FROM due_date)
+    GROUP BY payment_plan_id, year, quarter
 ),
 cumulative_data AS (
     SELECT 
@@ -43,11 +43,11 @@ payment_plan_data AS (
         tu_id,
         payment_plan_id,
         start_date,
-        EXTRACT(YEAR FROM start_date) AS year,
-        EXTRACT(QUARTER FROM start_date) AS quarter,
+        EXTRACT(YEAR FROM CAST(start_date AS DATE)) AS year,
+        EXTRACT(QUARTER FROM CAST(start_date AS DATE)) AS quarter,
         end_date,
-        EXTRACT(YEAR FROM end_date) AS end_year,
-        EXTRACT(QUARTER FROM end_date) AS end_quarter,
+        EXTRACT(YEAR FROM CAST(end_date AS DATE)) AS end_year,
+        EXTRACT(QUARTER FROM CAST(end_date AS DATE)) AS end_quarter,
         status_code,
         total_amount
     FROM payment_plan

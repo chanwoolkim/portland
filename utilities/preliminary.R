@@ -3,9 +3,14 @@
 # Linux box cannot install these packages
 if (Sys.info()[4]!="jdube01"){
   library(Hmisc)
+  library(multiwayvcov)
+  library(rdd)
+  library(sf)
   library(tidycensus)
   library(tidygeocoder)
   library(tidyverse)
+  library(tigris)
+  library(vtable)
 }
 
 library(dplyr)
@@ -16,18 +21,16 @@ library(ggrepel)
 library(glue)
 library(httr)
 library(jsonlite)
+library(labelled)
 library(lubridate)
-require(multiwayvcov)
 library(purrr)
 library(RColorBrewer)
-library(rdd)
 library(readr)
 library(readxl)
 library(scales)
 library(stringr)
 library(textab)
 library(tidyr)
-library(vtable)
 library(zip)
 library(zoo)
 
@@ -181,6 +184,17 @@ export_tex <- function(text, out_file) {
   sink(paste0(output_dir, "/numbers_in_doc/", out_file, ".tex"))
   cat(text)
   sink()
+}
+
+# Reapply variable labels
+reapply_labels <- function(original_df, modified_df) {
+  labels <- sapply(original_df, label, simplify=FALSE)
+  for (name in names(modified_df)) {
+    if (!is.null(labels[[name]])) {
+      label(modified_df[[name]]) <- labels[[name]]
+    }
+  }
+  modified_df
 }
 
 # Binomial confidence interval

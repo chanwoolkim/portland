@@ -1,7 +1,6 @@
 SELECT
-  account_number,
+  tu_id,
   bill_run_date,
-  location_id,
   bill_code,
   cons_level_amount,
   bc_detail_rate,
@@ -14,7 +13,7 @@ SELECT
   start_date,
   end_date,
   updated
-FROM `servus-291816.portland_working.usage`
-WHERE account_number IN (SELECT account_number FROM `servus-291816.portland_working.account_rct`)
+FROM usage
+WHERE tu_id IN (SELECT tu_id FROM account_rct)
   AND bill_run_date >= '2024-09-11'
-ORDER BY account_number, bill_run_date;
+ORDER BY tu_id, bill_run_date;

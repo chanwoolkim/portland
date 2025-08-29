@@ -1,13 +1,19 @@
 SELECT
   tu_id,
-  service_seq,
-  detail_type,
-  detail_seq,
+  item_number,
+  bill_run_date,
   bill_code,
-  bc_detail_type,
-  bc_detail_seq,
+  cons_level_amount,
+  bc_detail_rate,
+  bc_detail_amount,
+  is_bc_detail_prorated,
+  bc_active_days,
+  bc_standard_days,
+  report_context,
+  report_sub_context,
   start_date,
-  end_date
+  end_date,
+  updated
   FROM (
     SELECT 
       *,

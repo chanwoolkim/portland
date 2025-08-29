@@ -2,11 +2,11 @@ WITH ranked_transactions AS (
   SELECT
     transaction_id,
     tu_id,
-    transaction_type,
+    TRIM(transaction_type) AS transaction_type,
     source_reference,
     summary,
     status_code,
-    transaction_code,
+    TRIM(transaction_code) AS transaction_code,
     transaction_date,
     matched_date,
     last_matched_date,
@@ -16,9 +16,6 @@ WITH ranked_transactions AS (
     updated,
     ROW_NUMBER() OVER (PARTITION BY transaction_id ORDER BY updated DESC) AS row_num
   FROM transaction
-  WHERE transaction_type NOT IN ('VARCOMMIT', 'FIXCOMMIT', 'PAYCOMMIT')
-    AND transaction_type NOT LIKE '%CF%'
-    AND transaction_type NOT LIKE '%BB%'
 )
 SELECT
     transaction_id,
@@ -26,7 +23,8 @@ SELECT
     transaction_type,
     source_reference,
     CASE
-      WHEN transaction_code = 'ADJ' THEN 'discount'
+      WHEN transaction_code = 'ADJ' AND transaction_type LIKE '%CRISIS%' THEN 'discount'
+      WHEN transaction_code = 'ADJ' THEN 'adjustment'
       WHEN transaction_code IN ('B2', 'B3', 'BILLB', 'BILLV') THEN 'bill'
       WHEN transaction_code = 'BNKRP' THEN 'writeoff'
       WHEN transaction_code = 'CONV' THEN 'bill'
@@ -56,4 +54,7 @@ SELECT
     updated
 FROM ranked_transactions
 WHERE row_num = 1 AND tu_id IN (SELECT tu_id FROM account)
+  AND transaction_type NOT IN ('VARCOMMIT', 'FIXCOMMIT', 'PAYCOMMIT')
+  AND transaction_type NOT LIKE '%CF%'
+  AND transaction_type NOT LIKE '%BB%'
 ORDER BY transaction_id DESC;

@@ -1,13 +1,12 @@
-CREATE OR REPLACE TABLE `servus-291816.portland_working.transaction` AS
 WITH ranked_transactions AS (
   SELECT
     transaction_id,
-    account_number,
-    transaction_type,
+    account_id,
+    TRIM(transaction_type) AS transaction_type,
     source_reference,
     summary,
     status_code,
-    transaction_code,
+    TRIM(transaction_code) AS transaction_code,
     transaction_date,
     matched_date,
     last_matched_date,
@@ -16,18 +15,16 @@ WITH ranked_transactions AS (
     remaining_amount,
     updated,
     ROW_NUMBER() OVER (PARTITION BY transaction_id ORDER BY updated DESC) AS row_num
-  FROM `servus-291816.portlandWater.transaction`
-  WHERE transaction_type NOT IN ('VARCOMMIT', 'FIXCOMMIT', 'PAYCOMMIT')
-    AND transaction_type NOT LIKE '%CF%'
-    AND transaction_type NOT LIKE '%BB%'
+  FROM transaction
 )
 SELECT
     transaction_id,
-    account_number,
+    account_id,
     transaction_type,
     source_reference,
     CASE
-      WHEN transaction_code = 'ADJ' THEN 'discount'
+      WHEN transaction_code = 'ADJ' AND transaction_type LIKE '%CRISIS%' THEN 'discount'
+      WHEN transaction_code = 'ADJ' THEN 'adjustment'
       WHEN transaction_code IN ('B2', 'B3', 'BILLB', 'BILLV') THEN 'bill'
       WHEN transaction_code = 'BNKRP' THEN 'writeoff'
       WHEN transaction_code = 'CONV' THEN 'bill'
@@ -56,5 +53,8 @@ SELECT
     remaining_amount,
     updated
 FROM ranked_transactions
-WHERE row_num = 1 AND account_number IN (SELECT account_number FROM `servus-291816.portland_working.account`)
+WHERE row_num = 1 AND account_id IN (SELECT account_id FROM account)
+  AND transaction_type NOT IN ('VARCOMMIT', 'FIXCOMMIT', 'PAYCOMMIT')
+  AND transaction_type NOT LIKE '%CF%'
+  AND transaction_type NOT LIKE '%BB%'
 ORDER BY transaction_id DESC;
