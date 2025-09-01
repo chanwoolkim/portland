@@ -191,10 +191,10 @@ reapply_labels <- function(original_df, modified_df) {
   labels <- sapply(original_df, label, simplify=FALSE)
   for (name in names(modified_df)) {
     if (!is.null(labels[[name]])) {
-      label(modified_df[[name]]) <- labels[[name]]
+      var_label(modified_df[[name]]) <- labels[[name]]
     }
   }
-  modified_df
+  return(modified_df)
 }
 
 # Binomial confidence interval
